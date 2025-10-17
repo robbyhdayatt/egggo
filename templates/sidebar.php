@@ -45,6 +45,14 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                 <i class="fas fa-boxes"></i> <span>Stok Pakan</span>
             </a>
         </li>
+        <li class="nav-item <?php echo ($current_dir == 'pengeluaran') ? 'active' : ''; ?>">
+            <a class="nav-link" href="<?php echo $folder_base; ?>/pengeluaran/index.php">
+                <i class="fas fa-money-bill-wave"></i> <span>Pengeluaran</span>
+            </a>
+        </li>
+
+        <hr class="sidebar-divider">
+
         <li class="nav-item <?php echo ($current_dir == 'manajemen_user') ? 'active' : ''; ?>">
             <a class="nav-link" href="<?php echo $folder_base; ?>/manajemen_user/index.php">
                 <i class="fas fa-users-cog"></i> <span>Manajemen User</span>
