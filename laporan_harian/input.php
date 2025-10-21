@@ -1,51 +1,62 @@
 <?php
 include '../templates/header.php';
+// Ambil variabel role global dari header.php
+global $current_user_role, $current_assigned_kandang_id;
 
-$kandang_list = $koneksi->query("SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif'");
+// --- MODIFIKASI QUERY KANDANG ---
+// Sesuaikan query daftar kandang berdasarkan role
+$kandang_query = "SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif'";
+if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
+    $kandang_query .= " AND id_kandang = " . (int)$current_assigned_kandang_id;
+}
+$kandang_query .= " ORDER BY nama_kandang";
+$kandang_list = $koneksi->query($kandang_query);
+// --- AKHIR MODIFIKASI ---
+
 $pesan = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id_kandang = $_POST['id_kandang'] ?? null;
     $tanggal = $_POST['tanggal'] ?? date('Y-m-d');
-    
-    // Angka Integer (dibersihkan dari titik)
-    $ayam_masuk = $_POST['ayam_masuk'] ? (int)str_replace('.', '', $_POST['ayam_masuk']) : 0;
-    $ayam_mati = $_POST['ayam_mati'] ? (int)str_replace('.', '', $_POST['ayam_mati']) : 0;
-    $ayam_afkir = $_POST['ayam_afkir'] ? (int)str_replace('.', '', $_POST['ayam_afkir']) : 0;
-    $harga_jual_rata2 = $_POST['harga_jual_rata2'] ? (int)str_replace('.', '', $_POST['harga_jual_rata2']) : 0;
 
-    // Angka Desimal (kg)
-    $pakan_terpakai_kg = $_POST['pakan_terpakai_kg'] ? (float)str_replace(',', '.', $_POST['pakan_terpakai_kg']) : 0.0;
-    $telur_baik_kg = $_POST['telur_baik_kg'] ? (float)str_replace(',', '.', $_POST['telur_baik_kg']) : 0.0;
-    $telur_tipis_kg = $_POST['telur_tipis_kg'] ? (float)str_replace(',', '.', $_POST['telur_tipis_kg']) : 0.0;
-    $telur_pecah_kg = $_POST['telur_pecah_kg'] ? (float)str_replace(',', '.', $_POST['telur_pecah_kg']) : 0.0;
-    $telur_terjual_kg = $_POST['telur_terjual_kg'] ? (float)str_replace(',', '.', $_POST['telur_terjual_kg']) : 0.0;
-    
-    // Kalkulasi
-    $pemasukan_telur = $telur_terjual_kg * $harga_jual_rata2;
-
-    // Pengecekan data duplikat
-    $stmt_check = $koneksi->prepare("SELECT id_laporan FROM laporan_harian WHERE id_kandang = ? AND tanggal = ?");
-    $stmt_check->bind_param("is", $id_kandang, $tanggal);
-    $stmt_check->execute();
-    $result_check = $stmt_check->get_result();
-
-    if ($result_check->num_rows > 0) {
-        $pesan = "<div class='alert alert-danger'>Gagal menyimpan: Laporan untuk kandang dan tanggal ini sudah ada.</div>";
-    } elseif (empty($id_kandang)) {
-        $pesan = "<div class='alert alert-danger'>Gagal menyimpan laporan: Silakan pilih kandang.</div>";
+    // --- VALIDASI HAK AKSES DATA ---
+    if ($current_user_role === 'Karyawan' && $id_kandang != $current_assigned_kandang_id) {
+         $pesan = "<div class='alert alert-danger'>Error: Anda tidak berhak menginput data untuk kandang ini.</div>";
     } else {
-        // Query INSERT tanpa kolom pengeluaran
-        $sql = "INSERT INTO laporan_harian (id_kandang, tanggal, ayam_masuk, ayam_mati, ayam_afkir, pakan_terpakai_kg, telur_baik_kg, telur_tipis_kg, telur_pecah_kg, telur_terjual_kg, harga_jual_rata2, pemasukan_telur) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $koneksi->prepare($sql);
-        $stmt->bind_param("isiiidddddid", $id_kandang, $tanggal, $ayam_masuk, $ayam_mati, $ayam_afkir, $pakan_terpakai_kg, $telur_baik_kg, $telur_tipis_kg, $telur_pecah_kg, $telur_terjual_kg, $harga_jual_rata2, $pemasukan_telur);
-        
-        if ($stmt->execute()) {
-            $pesan = "<div class='alert alert-success'>Laporan harian berhasil disimpan!</div>";
+    // --- AKHIR VALIDASI ---
+
+        $ayam_masuk = $_POST['ayam_masuk'] ? (int)str_replace('.', '', $_POST['ayam_masuk']) : 0;
+        $ayam_mati = $_POST['ayam_mati'] ? (int)str_replace('.', '', $_POST['ayam_mati']) : 0;
+        $ayam_afkir = $_POST['ayam_afkir'] ? (int)str_replace('.', '', $_POST['ayam_afkir']) : 0;
+        $harga_jual_rata2 = $_POST['harga_jual_rata2'] ? (int)str_replace('.', '', $_POST['harga_jual_rata2']) : 0;
+        $pakan_terpakai_kg = $_POST['pakan_terpakai_kg'] ? (float)str_replace(',', '.', $_POST['pakan_terpakai_kg']) : 0.0;
+        $telur_baik_kg = $_POST['telur_baik_kg'] ? (float)str_replace(',', '.', $_POST['telur_baik_kg']) : 0.0;
+        $telur_tipis_kg = $_POST['telur_tipis_kg'] ? (float)str_replace(',', '.', $_POST['telur_tipis_kg']) : 0.0;
+        $telur_pecah_kg = $_POST['telur_pecah_kg'] ? (float)str_replace(',', '.', $_POST['telur_pecah_kg']) : 0.0;
+        $telur_terjual_kg = $_POST['telur_terjual_kg'] ? (float)str_replace(',', '.', $_POST['telur_terjual_kg']) : 0.0;
+        $pemasukan_telur = $telur_terjual_kg * $harga_jual_rata2;
+
+        $stmt_check = $koneksi->prepare("SELECT id_laporan FROM laporan_harian WHERE id_kandang = ? AND tanggal = ?");
+        $stmt_check->bind_param("is", $id_kandang, $tanggal);
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
+
+        if ($result_check->num_rows > 0) {
+            $pesan = "<div class='alert alert-danger'>Gagal menyimpan: Laporan untuk kandang dan tanggal ini sudah ada.</div>";
+        } elseif (empty($id_kandang)) {
+            $pesan = "<div class='alert alert-danger'>Gagal menyimpan laporan: Silakan pilih kandang.</div>";
         } else {
-            $pesan = "<div class='alert alert-danger'>Gagal menyimpan laporan: " . $stmt->error . "</div>";
+            $sql = "INSERT INTO laporan_harian (id_kandang, tanggal, ayam_masuk, ayam_mati, ayam_afkir, pakan_terpakai_kg, telur_baik_kg, telur_tipis_kg, telur_pecah_kg, telur_terjual_kg, harga_jual_rata2, pemasukan_telur) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $stmt = $koneksi->prepare($sql);
+            $stmt->bind_param("isiiidddddid", $id_kandang, $tanggal, $ayam_masuk, $ayam_mati, $ayam_afkir, $pakan_terpakai_kg, $telur_baik_kg, $telur_tipis_kg, $telur_pecah_kg, $telur_terjual_kg, $harga_jual_rata2, $pemasukan_telur);
+            
+            if ($stmt->execute()) {
+                $pesan = "<div class='alert alert-success'>Laporan harian berhasil disimpan!</div>";
+            } else {
+                $pesan = "<div class='alert alert-danger'>Gagal menyimpan laporan: " . $stmt->error . "</div>";
+            }
         }
-    }
+    } // Akhir else validasi hak akses
 }
 ?>
 
@@ -58,17 +69,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <?php echo $pesan; ?>
 
     <div class="card mb-4">
-        <div class="card-header">Pilih Kandang & Tanggal</div>
+        <div class="card-header">
+            Pilih Kandang & Tanggal
+        </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="id_kandang_filter" class="form-label">Pilih Kandang <span class="text-danger">*</span></label>
-                    <select class="form-select" id="id_kandang_filter" name="id_kandang_filter" required>
-                        <option value="" disabled selected>-- Pilih Kandang --</option>
-                        <?php if (isset($kandang_list) && $kandang_list->num_rows > 0) { mysqli_data_seek($kandang_list, 0); } ?>
-                        <?php while($k = $kandang_list->fetch_assoc()): ?>
-                            <option value="<?php echo $k['id_kandang']; ?>"><?php echo htmlspecialchars($k['nama_kandang']); ?></option>
-                        <?php endwhile; ?>
+                    <select class="form-select" id="id_kandang_filter" name="id_kandang_filter" required <?php echo ($current_user_role === 'Karyawan') ? 'disabled' : ''; ?>>
+                        <?php if ($current_user_role === 'Pimpinan'): ?>
+                            <option value="" disabled selected>-- Pilih Kandang --</option>
+                        <?php endif; ?>
+                        
+                        <?php if ($kandang_list && $kandang_list->num_rows > 0): ?>
+                            <?php while($k = $kandang_list->fetch_assoc()): ?>
+                                <option value="<?php echo $k['id_kandang']; ?>" <?php echo ($current_user_role === 'Karyawan') ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($k['nama_kandang']); ?>
+                                </option>
+                            <?php endwhile; ?>
+                        <?php elseif ($current_user_role === 'Pimpinan'): ?>
+                             <option value="" disabled>Belum ada kandang aktif</option>
+                        <?php endif; ?>
                     </select>
                 </div>
                 <div class="col-md-6 mb-3">
@@ -111,19 +132,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <h5><i class="fas fa-crow"></i> Data Ayam</h5>
                             <div class="mb-3">
                                 <label for="ayam_masuk" class="form-label">Ayam Masuk (ekor)</label>
-                                <input type="tel" class="form-control clear-on-focus" id="ayam_masuk" name="ayam_masuk" value="0" autocomplete="off">
+                                <input type="tel" class="form-control clear-on-focus format-number" id="ayam_masuk" name="ayam_masuk" value="0" autocomplete="off">
                             </div>
                             <div class="mb-3">
                                 <label for="ayam_mati" class="form-label">Ayam Mati (ekor)</label>
-                                <input type="tel" class="form-control clear-on-focus" id="ayam_mati" name="ayam_mati" value="0" autocomplete="off">
+                                <input type="tel" class="form-control clear-on-focus format-number" id="ayam_mati" name="ayam_mati" value="0" autocomplete="off">
                             </div>
                             <div class="mb-3">
                                 <label for="ayam_afkir" class="form-label">Ayam Afkir (ekor)</label>
-                                <input type="tel" class="form-control clear-on-focus" id="ayam_afkir" name="ayam_afkir" value="0" autocomplete="off">
+                                <input type="tel" class="form-control clear-on-focus format-number" id="ayam_afkir" name="ayam_afkir" value="0" autocomplete="off">
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <h5><i class="fas fa-egg"></i> Pakan & Produksi</h5>
+                             <h5><i class="fas fa-seedling"></i> Pakan & Produksi</h5>
+                             <div class="mb-3">
+                                <label for="harga_pakan_terbaru" class="form-label">Harga Pakan/Kg (Terbaru)</label>
+                                <input type="text" class="form-control" id="harga_pakan_terbaru" name="harga_pakan_terbaru" value="Rp 0" readonly disabled>
+                             </div>
                              <div class="mb-3">
                                 <label for="pakan_terpakai_kg" class="form-label">Pakan Terpakai (kg)</label>
                                 <input type="number" step="0.01" class="form-control clear-on-focus" id="pakan_terpakai_kg" name="pakan_terpakai_kg" value="0.00">
@@ -149,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
                             <div class="mb-3">
                                 <label for="harga_jual_rata2" class="form-label">Harga Jual Rata-rata (Rp/kg)</label>
-                                <input type="tel" class="form-control clear-on-focus" id="harga_jual_rata2" name="harga_jual_rata2" value="0" autocomplete="off">
+                                <input type="tel" class="form-control clear-on-focus format-number" id="harga_jual_rata2" name="harga_jual_rata2" value="0" autocomplete="off">
                             </div>
                         </div>
                     </div>
@@ -171,6 +196,7 @@ $(document).ready(function() {
     const formDisabledMessage = $('#formDisabledMessage');
     const submitButton = $('#submitButton');
     const mainFormInputs = $('#mainFormContainer').find('input, select, button');
+    const hargaPakanInput = $('#harga_pakan_terbaru'); 
 
     function checkAndShowForm() {
         const kandangId = kandangFilter.val();
@@ -178,6 +204,8 @@ $(document).ready(function() {
 
         $('#id_kandang_hidden').val(kandangId);
         $('#tanggal_hidden').val(tanggal);
+
+        hargaPakanInput.val('Memuat...'); 
 
         if (kandangId && tanggal) {
             mainFormContainer.slideDown(); 
@@ -188,16 +216,22 @@ $(document).ready(function() {
                     formDisabledMessage.show();
                     submitButton.prop('disabled', true).text('Laporan Untuk Tanggal Ini Sudah Diinput');
                     mainFormInputs.not('#submitButton').prop('disabled', true);
+                     $.getJSON(`get_harga_pakan.php?id_kandang=${kandangId}&tanggal=${tanggal}`, function(hargaResponse) {
+                        hargaPakanInput.val(hargaResponse.harga_pakan || 'Rp 0');
+                    });
                 } else {
                     formDisabledMessage.hide();
                     submitButton.prop('disabled', false).text('Simpan Laporan Harian');
                     mainFormInputs.prop('disabled', false);
+                    $.getJSON(`get_harga_pakan.php?id_kandang=${kandangId}&tanggal=${tanggal}`, function(hargaResponse) {
+                        hargaPakanInput.val(hargaResponse.harga_pakan || 'Rp 0');
+                    });
                 }
             });
 
             $('#summary_total_ayam, #summary_total_telur, #summary_total_pakan_tersedia').text('Memuat...');
             $.getJSON(`get_kandang_summary.php?id_kandang=${kandangId}`, function(data) {
-                if(data.error) {
+                 if(data.error) {
                     $('#summary_total_ayam, #summary_total_telur, #summary_total_pakan_tersedia').text('Error');
                 } else {
                     $('#summary_total_ayam').text(data.total_ayam);
@@ -208,49 +242,94 @@ $(document).ready(function() {
 
         } else {
             mainFormContainer.slideUp(); 
+            hargaPakanInput.val('Rp 0'); 
         }
     }
 
     kandangFilter.on('change', checkAndShowForm);
     tanggalFilter.on('change', checkAndShowForm);
 
-    // --- LOGIKA MENGHILANGKAN NILAI 0 SAAT INPUT DI-FOKUS ---
+    // --- PERBAIKAN DI SINI: ISI FUNGSI YANG KOSONG ---
+    
+    // 1. Logika untuk menghapus '0' atau '0.00' saat input difokus
     $('.clear-on-focus').on('focus', function() {
         if ($(this).val() == '0' || $(this).val() == '0.00') {
             $(this).val('');
         }
     });
 
+    // 2. Logika untuk mengembalikan '0' atau '0.00' saat fokus hilang (jika input kosong)
     $('.clear-on-focus').on('blur', function() {
-        if ($(this).val() == '') {
-            if($(this).attr('step') === '0.01') {
+        if ($(this).val() === '') {
+            // Cek apakah ini input desimal (punya step="0.01")
+            if ($(this).attr('step') && $(this).attr('step').indexOf('.') !== -1) {
                 $(this).val('0.00');
             } else {
                 $(this).val('0');
             }
         }
+        // Jika input integer (format-number), format juga saat blur
+        if ($(this).hasClass('format-number') && $(this).val() !== '0') {
+             formatNumberWithDots(this);
+        }
     });
 
-    // --- LOGIKA UNTUK FORMAT ANGKA OTOMATIS ---
+    // 3. Definisi fungsi format angka ribuan
     function formatNumberWithDots(input) {
         let value = $(input).val().replace(/[^0-9]/g, '');
-        if (value === '' || value === null) { $(input).val(''); return; }
+        if (value === '' || value === null) { 
+            // Jangan set jadi '0' saat sedang mengetik
+            if(!$(input).is(':focus')) {
+                 $(input).val('0');
+            } else {
+                 $(input).val('');
+            }
+            return; 
+        }
         $(input).val(new Intl.NumberFormat('id-ID').format(value));
     }
-    const inputIdsToFormat = ['#ayam_masuk', '#ayam_mati', '#ayam_afkir', '#harga_jual_rata2'];
-    $(inputIdsToFormat.join(', ')).on('keyup input', function() { formatNumberWithDots(this); });
+    
+    // 4. Terapkan listener untuk format angka ribuan
+    $('.format-number').on('keyup input', function() { 
+        formatNumberWithDots(this); 
+    });
 
-    // --- LOGIKA VALIDASI FORM ---
+    // --- AKHIR PERBAIKAN ---
+
+
+    // --- LOGIKA VALIDASI FORM BOOTSTRAP ---
     const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
         form.addEventListener('submit', event => {
+             // Hapus format titik dari input .format-number sebelum submit
+            $(form).find('.format-number').each(function() {
+               $(this).val($(this).val().replace(/\./g, ''));
+            });
+             // Ganti koma jadi titik untuk input desimal
+             $(form).find('input[step*="."]').each(function() {
+                  $(this).val($(this).val().replace(',', '.'));
+             });
+
             if (!form.checkValidity()) {
                 event.preventDefault();
                 event.stopPropagation();
             }
             form.classList.add('was-validated');
+
+            // Kembalikan format setelah submit (jika validasi gagal)
+             setTimeout(() => {
+                $(form).find('.format-number').each(function() {
+                     formatNumberWithDots(this); 
+                });
+             }, 100);
         }, false);
     });
+
+    // --- MODIFIKASI: TRIGGER OTOMATIS UNTUK KARYAWAN ---
+    <?php if ($current_user_role === 'Karyawan'): ?>
+        checkAndShowForm();
+    <?php endif; ?>
+    // --- AKHIR MODIFIKASI ---
 });
 </script>
 

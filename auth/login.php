@@ -13,7 +13,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $username = trim($_POST['username']);
         $password = trim($_POST['password']);
 
-        $stmt = $koneksi->prepare("SELECT id_user, username, password FROM users WHERE username = ?");
+        // ---- MODIFIKASI DIMULAI DARI SINI ----
+        // 1. Ubah query SELECT untuk mengambil 'id_kandang' juga
+        $stmt = $koneksi->prepare("SELECT id_user, username, password, role, id_kandang FROM users WHERE username = ?"); 
+        // ---- AKHIR MODIFIKASI QUERY ----
+        
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -21,8 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($result->num_rows === 1) {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
+                // ---- MODIFIKASI DIMULAI DARI SINI ----
+                // 2. Simpan 'id_kandang' ke dalam session
                 $_SESSION['user_id'] = $user['id_user'];
                 $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role']; 
+                $_SESSION['assigned_kandang_id'] = ($user['role'] === 'Karyawan') ? $user['id_kandang'] : null; // <-- TAMBAHKAN INI
+                // ---- AKHIR MODIFIKASI SESSION ----
+                
                 header('Location: ' . $folder_base . '/index.php');
                 exit();
             }

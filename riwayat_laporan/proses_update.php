@@ -49,9 +49,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($stmt->execute()) {
         // Redirect kembali ke halaman riwayat dengan parameter filter yang sama
-        // Ambil parameter dari referer URL
-        $redirect_url = $_SERVER['HTTP_REFERER'] ?? 'index.php';
-        header('Location: ' . $redirect_url . '&status=sukses_update');
+        $id_kandang_filter = $_GET['id_kandang_current'] ?? '';
+        $tgl_awal_filter = $_GET['tgl_awal_current'] ?? '';
+        $tgl_akhir_filter = $_GET['tgl_akhir_current'] ?? '';
+        
+        $redirect_params = http_build_query([
+            'id_kandang' => $id_kandang_filter,
+            'tgl_awal' => $tgl_awal_filter,
+            'tgl_akhir' => $tgl_akhir_filter,
+            'status' => 'sukses_update' 
+        ]);
+        
+        header('Location: index.php?' . $redirect_params);
         exit();
     } else {
         die("Gagal memperbarui data: " . $stmt->error);

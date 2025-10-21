@@ -17,13 +17,12 @@ if (isset($_GET['status'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_kandang'])) {
     $nama_kandang = $_POST['nama_kandang'];
     $tgl_masuk_awal = $_POST['tgl_masuk_awal'];
-    $populasi_awal = $_POST['populasi_awal'];
+    $populasi_awal = (int)str_replace('.', '', $_POST['populasi_awal']); // Bersihkan format ribuan
     
-    // Konversi umur dari minggu ke hari sebelum disimpan
-    $umur_ayam_awal_minggu = $_POST['umur_ayam_awal'];
+    $umur_ayam_awal_minggu = (int)$_POST['umur_ayam_awal'];
     $umur_ayam_awal_hari = $umur_ayam_awal_minggu * 7;
     
-    $stok_telur_awal_kg = $_POST['stok_telur_awal_kg'];
+    $stok_telur_awal_kg = (float)str_replace(',', '.', $_POST['stok_telur_awal_kg']); // Ganti koma jika ada
 
     $stmt = $koneksi->prepare("INSERT INTO kandang (nama_kandang, tgl_masuk_awal, populasi_awal, umur_ayam_awal, stok_telur_awal_kg) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("ssiid", $nama_kandang, $tgl_masuk_awal, $populasi_awal, $umur_ayam_awal_hari, $stok_telur_awal_kg);
@@ -62,7 +61,7 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="populasi_awal" class="form-label">Populasi Awal (ekor)</label>
-                                <input type="number" class="form-control" id="populasi_awal" name="populasi_awal" required>
+                                <input type="tel" class="form-control format-number" id="populasi_awal" name="populasi_awal" required autocomplete="off">
                                 <div class="invalid-feedback">Populasi awal wajib diisi.</div>
                             </div>
                             <div class="col-md-4 mb-3">
@@ -72,7 +71,7 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="stok_telur_awal_kg" class="form-label">Stok Telur Awal (kg)</label>
-                                <input type="number" step="0.01" class="form-control" id="stok_telur_awal_kg" name="stok_telur_awal_kg" value="0.00" required>
+                                <input type="number" step="0.01" class="form-control clear-decimal-on-focus" id="stok_telur_awal_kg" name="stok_telur_awal_kg" value="0.00" required>
                                 <div class="invalid-feedback">Stok telur awal wajib diisi.</div>
                             </div>
                         </div>
@@ -109,21 +108,24 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
                                 <td><?php echo number_format($row['stok_telur_awal_kg'], 2); ?></td>
                                 <td><span class="badge bg-<?php echo $row['status'] == 'Aktif' ? 'success' : 'secondary'; ?>"><?php echo $row['status']; ?></span></td>
                                 <td>
-                                    <button type="button" class="btn btn-sm btn-warning btn-edit" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#editModal"
-                                        data-id="<?php echo $row['id_kandang']; ?>"
-                                        data-nama="<?php echo htmlspecialchars($row['nama_kandang']); ?>"
-                                        data-tgl="<?php echo $row['tgl_masuk_awal']; ?>"
-                                        data-populasi="<?php echo $row['populasi_awal']; ?>"
-                                        data-umur="<?php echo $row['umur_ayam_awal']; ?>"
-                                        data-stok-telur="<?php echo $row['stok_telur_awal_kg']; ?>"
-                                        data-status="<?php echo $row['status']; ?>">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <a href="hapus.php?id=<?php echo $row['id_kandang']; ?>" class="btn btn-sm btn-danger btn-hapus">
-                                        <i class="fas fa-trash"></i> Hapus
-                                    </a>
+                                     <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-sm btn-warning btn-edit" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editModal"
+                                            data-id="<?php echo $row['id_kandang']; ?>"
+                                            data-nama="<?php echo htmlspecialchars($row['nama_kandang']); ?>"
+                                            data-tgl="<?php echo $row['tgl_masuk_awal']; ?>"
+                                            data-populasi="<?php echo $row['populasi_awal']; ?>"
+                                            data-umur="<?php echo $row['umur_ayam_awal']; ?>"
+                                            data-stok-telur="<?php echo $row['stok_telur_awal_kg']; ?>"
+                                            data-status="<?php echo $row['status']; ?>"
+                                            data-bs-toggle="tooltip" title="Edit Data">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <a href="hapus.php?id=<?php echo $row['id_kandang']; ?>" class="btn btn-sm btn-danger btn-hapus" data-bs-toggle="tooltip" title="Hapus Data">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                     </div>
                                 </td>
                             </tr>
                             <?php endwhile; ?>
@@ -155,7 +157,7 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
               </div>
               <div class="mb-3">
                   <label for="edit_populasi_awal" class="form-label">Populasi Awal (ekor)</label>
-                  <input type="number" class="form-control" id="edit_populasi_awal" name="populasi_awal" required>
+                   <input type="tel" class="form-control format-number" id="edit_populasi_awal" name="populasi_awal" required autocomplete="off">
               </div>
               <div class="mb-3">
                   <label for="edit_umur_ayam_awal" class="form-label">Umur Ayam Awal (minggu)</label>
@@ -163,7 +165,7 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
               </div>
               <div class="mb-3">
                   <label for="edit_stok_telur_awal_kg" class="form-label">Stok Telur Awal (kg)</label>
-                  <input type="number" step="0.01" class="form-control" id="edit_stok_telur_awal_kg" name="stok_telur_awal_kg" required>
+                   <input type="number" step="0.01" class="form-control clear-decimal-on-focus" id="edit_stok_telur_awal_kg" name="stok_telur_awal_kg" required>
               </div>
               <div class="mb-3">
                   <label for="edit_status" class="form-label">Status</label>
@@ -187,25 +189,58 @@ $hasil = $koneksi->query("SELECT * FROM kandang ORDER BY id_kandang DESC");
 <script>
 $(document).ready(function() {
     $('#tabelKandang').DataTable({
-        "language": { "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/id.json" }
+        "language": { "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/id.json" },
+        "order": [[ 0, "asc" ]] // Urutkan berdasarkan nama kandang secara default
     });
     
+    // Inisialisasi Tooltip Bootstrap
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl)
+    })
+
+    // --- LOGIKA MENGHILANGKAN NILAI 0.00 SAAT INPUT DI-FOKUS ---
+    $('.clear-decimal-on-focus').on('focus', function() {
+        if ($(this).val() == '0.00') {
+            $(this).val('');
+        }
+    });
+
+    $('.clear-decimal-on-focus').on('blur', function() {
+        if ($(this).val() === '') {
+            $(this).val('0.00');
+        }
+        // Pastikan formatnya benar jika pengguna memasukkan angka
+        let value = parseFloat($(this).val());
+        if (!isNaN(value)) {
+            $(this).val(value.toFixed(2));
+        } else {
+             $(this).val('0.00'); // Kembalikan ke 0.00 jika input tidak valid
+        }
+    });
+
+    // --- LOGIKA FORMAT ANGKA RIBUAN UNTUK POPULASI AWAL ---
+    function formatNumberWithDots(input) {
+        let value = $(input).val().replace(/[^0-9]/g, '');
+        if (value === '' || value === null) { $(input).val(''); return; }
+        $(input).val(new Intl.NumberFormat('id-ID').format(value));
+    }
+    $('.format-number').on('keyup input', function() { formatNumberWithDots(this); });
+
+
     // Logika untuk Modal Edit
     const editModal = document.getElementById('editModal');
     editModal.addEventListener('show.bs.modal', function (event) {
         const button = event.relatedTarget;
         
-        // Mengambil semua data dari data-* attributes
-        const id = button.getAttribute('data-id');
-        const nama = button.getAttribute('data-nama');
-        const tgl = button.getAttribute('data-tgl');
-        const populasi = button.getAttribute('data-populasi');
-        const umurHari = button.getAttribute('data-umur'); // Ini berisi nilai dalam HARI (misal: 35)
-        const stokTelur = button.getAttribute('data-stok-telur'); // Atribut untuk stok telur
-        const status = button.getAttribute('data-status');
+        const id = button.dataset.id;
+        const nama = button.dataset.nama;
+        const tgl = button.dataset.tgl;
+        const populasi = button.dataset.populasi;
+        const umurHari = button.dataset.umur; 
+        const stokTelur = button.dataset.stokTelur; 
+        const status = button.dataset.status;
         
-        // --- PERBAIKAN LOGIKA DI SINI ---
-        // 1. Konversi umur dari HARI kembali ke MINGGU untuk ditampilkan di form
         const umurMinggu = umurHari / 7;
 
         // Update isi form di dalam modal
@@ -213,31 +248,31 @@ $(document).ready(function() {
         editModal.querySelector('#edit_id_kandang').value = id;
         editModal.querySelector('#edit_nama_kandang').value = nama;
         editModal.querySelector('#edit_tgl_masuk_awal').value = tgl;
-        editModal.querySelector('#edit_populasi_awal').value = populasi;
-        editModal.querySelector('#edit_umur_ayam_awal').value = umurMinggu; // Gunakan hasil konversi
-        editModal.querySelector('#edit_stok_telur_awal_kg').value = stokTelur; // Tampilkan stok telur
+        // Format angka populasi saat mengisi modal
+        $(editModal.querySelector('#edit_populasi_awal')).val(populasi).trigger('keyup'); 
+        editModal.querySelector('#edit_umur_ayam_awal').value = umurMinggu; 
+        // Format angka stok telur saat mengisi modal
+        $(editModal.querySelector('#edit_stok_telur_awal_kg')).val(parseFloat(stokTelur).toFixed(2));
         editModal.querySelector('#edit_status').value = status;
     });
 
     // Logika untuk SweetAlert Hapus (tidak berubah)
-    document.querySelectorAll('.btn-hapus').forEach(button => {
-        button.addEventListener('click', function (event) {
-            event.preventDefault();
-            const href = this.getAttribute('href');
-            Swal.fire({
-                title: 'Apakah Anda yakin?',
-                text: "Data kandang dan semua laporan terkait akan dihapus permanen!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'Ya, hapus!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = href;
-                }
-            });
+    $('#tabelKandang tbody').on('click', '.btn-hapus', function(e) {
+        e.preventDefault();
+        const href = this.getAttribute('href');
+        Swal.fire({
+            title: 'Apakah Anda yakin?',
+            text: "Data kandang dan semua laporan terkait akan dihapus permanen!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, hapus!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = href;
+            }
         });
     });
 
@@ -245,6 +280,11 @@ $(document).ready(function() {
     const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
         form.addEventListener('submit', event => {
+             // Hapus format titik sebelum submit
+            $('.format-number').each(function() {
+               $(this).val($(this).val().replace(/\./g, ''));
+            });
+            
             if (!form.checkValidity()) {
                 event.preventDefault();
                 event.stopPropagation();

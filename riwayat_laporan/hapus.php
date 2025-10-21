@@ -1,33 +1,30 @@
 <?php
-session_start();
-
 include '../config/database.php';
 
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . $folder_base . '/auth/login.php');
-    exit();
-}
+// Ambil parameter filter dari URL untuk redirect kembali
+$id_kandang = $_GET['id_kandang'] ?? '';
+$tgl_awal = $_GET['tgl_awal'] ?? '';
+$tgl_akhir = $_GET['tgl_akhir'] ?? '';
+$redirect_params = http_build_query([
+    'id_kandang' => $id_kandang,
+    'tgl_awal' => $tgl_awal,
+    'tgl_akhir' => $tgl_akhir,
+    'status' => 'sukses_hapus' // Tambahkan status hapus
+]);
 
-if (isset($_GET['id']) && !empty($_GET['id'])) {
-    $id_laporan = (int)$_GET['id'];
-    $sql = "DELETE FROM laporan_harian WHERE id_laporan = ?";
-    $stmt = $koneksi->prepare($sql);
+if (isset($_GET['id'])) {
+    $id_laporan = $_GET['id'];
+    $stmt = $koneksi->prepare("DELETE FROM laporan_harian WHERE id_laporan = ?");
     $stmt->bind_param("i", $id_laporan);
-
     if ($stmt->execute()) {
-        // Jika berhasil, atur pesan sukses di session (opsional, untuk notifikasi)
-        $_SESSION['success_message'] = "Data laporan berhasil dihapus.";
-        header('Location: ' . $_SERVER['HTTP_REFERER']);
+        header('Location: index.php?' . $redirect_params);
         exit();
-
     } else {
-        echo "Error: Gagal menghapus data. " . $stmt->error;
+        die("Gagal menghapus data laporan: " . $stmt->error);
     }
-    $stmt->close();
 } else {
-    header('Location: index.php');
+    // Redirect kembali ke index jika ID tidak ada
+    header('Location: index.php?' . str_replace('&status=sukses_hapus', '', $redirect_params));
     exit();
 }
-
-$koneksi->close();
 ?>

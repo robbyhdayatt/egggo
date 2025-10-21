@@ -2,6 +2,9 @@
 // Mendapatkan nama file saat ini untuk logika 'active'
 $current_page = basename($_SERVER['PHP_SELF']);
 $current_dir = basename(dirname($_SERVER['PHP_SELF']));
+
+// Ambil role user dari session (pastikan sudah diset saat login)
+$user_role = $_SESSION['role'] ?? 'Karyawan'; // Default ke Karyawan jika role tidak diset
 ?>
 <div class="sidebar">
     <a href="<?php echo $folder_base; ?>/index.php" class="sidebar-brand">
@@ -22,9 +25,9 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                 <i class="fas fa-edit"></i> <span>Input Harian</span>
             </a>
         </li>
-        <li class="nav-item <?php echo ($current_dir == 'laporan_performa') ? 'active' : ''; ?>">
-            <a class="nav-link" href="<?php echo $folder_base; ?>/laporan_performa/index.php">
-                <i class="fas fa-chart-line"></i> <span>Laporan Performa</span>
+         <li class="nav-item <?php echo ($current_dir == 'pengeluaran') ? 'active' : ''; ?>">
+            <a class="nav-link" href="<?php echo $folder_base; ?>/pengeluaran/index.php">
+                <i class="fas fa-money-bill-wave"></i> <span>Pengeluaran</span>
             </a>
         </li>
         <li class="nav-item <?php echo ($current_dir == 'riwayat_laporan') ? 'active' : ''; ?>">
@@ -32,42 +35,42 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                 <i class="fas fa-history"></i> <span>Riwayat Laporan</span>
             </a>
         </li>
-
-        <hr class="sidebar-divider">
-
-        <li class="nav-item <?php echo ($current_dir == 'kandang') ? 'active' : ''; ?>">
-            <a class="nav-link" href="<?php echo $folder_base; ?>/kandang/index.php">
-                <i class="fas fa-home"></i> <span>Manajemen Kandang</span>
-            </a>
-        </li>
-        <li class="nav-item <?php echo ($current_dir == 'stok_pakan') ? 'active' : ''; ?>">
+         <li class="nav-item <?php echo ($current_dir == 'stok_pakan') ? 'active' : ''; ?>">
             <a class="nav-link" href="<?php echo $folder_base; ?>/stok_pakan/index.php">
                 <i class="fas fa-boxes"></i> <span>Stok Pakan</span>
             </a>
         </li>
-        <li class="nav-item <?php echo ($current_dir == 'pengeluaran') ? 'active' : ''; ?>">
-            <a class="nav-link" href="<?php echo $folder_base; ?>/pengeluaran/index.php">
-                <i class="fas fa-money-bill-wave"></i> <span>Pengeluaran</span>
-            </a>
-        </li>
 
-        <hr class="sidebar-divider">
-
-        <li class="nav-item <?php echo ($current_dir == 'manajemen_user') ? 'active' : ''; ?>">
-            <a class="nav-link" href="<?php echo $folder_base; ?>/manajemen_user/index.php">
-                <i class="fas fa-users-cog"></i> <span>Manajemen User</span>
-            </a>
-        </li>
-        <li class="nav-item <?php echo ($current_dir == 'tujuan_wa') ? 'active' : ''; ?>">
-            <a class="nav-link" href="<?php echo $folder_base; ?>/tujuan_wa/index.php">
-                <i class="fas fa-phone"></i> <span>Tujuan Notifikasi WA</span>
-            </a>
-        </li>
+<?php if ($user_role === 'Pimpinan'): ?>
+            <hr class="sidebar-divider">
+            <li class="nav-item <?php echo ($current_dir == 'kandang') ? 'active' : ''; ?>">
+                <a class="nav-link" href="<?php echo $folder_base; ?>/kandang/index.php">
+                    <i class="fas fa-home"></i> <span>Manajemen Kandang</span>
+                </a>
+            </li>
+            
+            <li class="nav-item <?php echo ($current_dir == 'kategori_pengeluaran') ? 'active' : ''; ?>">
+                <a class="nav-link" href="<?php echo $folder_base; ?>/kategori_pengeluaran/index.php">
+                    <i class="fas fa-tags"></i> <span>Manajemen Kategori</span>
+                </a>
+            </li>
+            <li class="nav-item <?php echo ($current_dir == 'manajemen_user') ? 'active' : ''; ?>">
+                <a class="nav-link" href="<?php echo $folder_base; ?>/manajemen_user/index.php">
+                    <i class="fas fa-users-cog"></i> <span>Manajemen User</span>
+                </a>
+            </li>
+            <li class="nav-item <?php echo ($current_dir == 'tujuan_wa') ? 'active' : ''; ?>">
+                <a class="nav-link" href="<?php echo $folder_base; ?>/tujuan_wa/index.php">
+                    <i class="fas fa-phone"></i> <span>Tujuan Notifikasi WA</span>
+                </a>
+            </li>
+        <?php endif; ?>
+        
     </ul>
 
     <div class="sidebar-footer">
         <span class="username"><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-        <a href="<?php echo $folder_base; ?>/auth/logout.php" class="btn btn-sm btn-outline-danger w-100">
+        <span class="role badge bg-info"><?php echo htmlspecialchars($user_role); ?></span> <a href="<?php echo $folder_base; ?>/auth/logout.php" class="btn btn-sm btn-outline-danger w-100 mt-2">
             <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
         </a>
     </div>

@@ -1,27 +1,39 @@
 <?php
-include '../config/database.php';
-
-if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . $folder_base . '/auth/login.php');
-    exit();
-}
+include '../templates/header.php';
+// Ambil variabel role global dari header.php
+global $current_user_role, $current_assigned_kandang_id;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id_stok = $_POST['id_stok'];
+    $id_kandang = $_POST['id_kandang'];
     $tanggal_beli = $_POST['tanggal_beli'];
     $nama_pakan = $_POST['nama_pakan'];
-    $jumlah_kg = $_POST['jumlah_kg'];
-
-    // <<<--- PERUBAHAN DI SINI: Hapus titik sebelum menyimpan ---<<<
+    $jumlah_kg = (float)str_replace(',', '.', $_POST['jumlah_kg']);
+    $harga_per_kg = str_replace('.', '', $_POST['harga_per_kg']);
     $harga_total = str_replace('.', '', $_POST['harga_total']);
 
-    $stmt = $koneksi->prepare("UPDATE stok_pakan SET tanggal_beli = ?, nama_pakan = ?, jumlah_kg = ?, harga_total = ? WHERE id_stok = ?");
-    $stmt->bind_param("ssdis", $tanggal_beli, $nama_pakan, $jumlah_kg, $harga_total, $id_stok);
-    
+    // --- VALIDASI HAK AKSES DATA ---
+    if ($current_user_role === 'Karyawan' && $id_kandang != $current_assigned_kandang_id) {
+         header('Location: index.php?status=error&msg=AksesDitolak');
+         exit();
+    }
+    // --- AKHIR VALIDASI ---
+
+    // --- PERBAIKAN TIPE DATA BIND_PARAM ---
+    // Ubah 'i' (integer) untuk harga menjadi 'd' (double)
+    $stmt = $koneksi->prepare("
+        UPDATE stok_pakan 
+        SET id_kandang = ?, tanggal_beli = ?, nama_pakan = ?, jumlah_kg = ?, harga_per_kg = ?, harga_total = ?
+        WHERE id_stok = ?
+    ");
+    $stmt->bind_param("issdddi", $id_kandang, $tanggal_beli, $nama_pakan, $jumlah_kg, $harga_per_kg, $harga_total, $id_stok);
+    // --- AKHIR PERBAIKAN ---
+
     if ($stmt->execute()) {
         header('Location: index.php?status=sukses_update');
+        exit();
     } else {
-        echo "Gagal mengupdate data!";
+        die("Gagal memperbarui data: " . $stmt->error);
     }
 } else {
     header('Location: index.php');
