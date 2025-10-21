@@ -1,7 +1,6 @@
 <?php
-include '../templates/header.php'; // Header sudah otomatis cek role Pimpinan
+include '../templates/header.php';
 
-// Ambil data users untuk ditampilkan
 $users_result = $koneksi->query("
     SELECT u.id_user, u.username, u.nama_lengkap, u.role, u.id_kandang, k.nama_kandang 
     FROM users u
@@ -9,7 +8,6 @@ $users_result = $koneksi->query("
     ORDER BY u.username
 ");
 
-// Ambil daftar kandang aktif untuk dropdown
 $kandang_list = $koneksi->query("SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif' ORDER BY nama_kandang");
 
 // Cek notifikasi

@@ -10,13 +10,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id_kandang = ($role === 'Karyawan' && !empty($_POST['id_kandang'])) ? (int)$_POST['id_kandang'] : NULL;
 
     if (empty($id_user) || empty($username) || empty($nama_lengkap) || empty($role)) { header('Location: index.php?status=error&msg=InputTidakLengkap'); exit(); }
-     
-     // --- PERUBAHAN DI SINI ---
-     if (!empty($password) && strlen($password) < 3) { // Diubah dari 6 menjadi 3
+
+     if (!empty($password) && strlen($password) < 3) {
           header('Location: index.php?status=error&msg=PasswordPendek'); exit();
      }
 
-    // Cek username unik (kecuali user itu sendiri)
     $stmt_check = $koneksi->prepare("SELECT id_user FROM users WHERE username = ? AND id_user != ?");
     $stmt_check->bind_param("si", $username, $id_user); $stmt_check->execute(); $result_check = $stmt_check->get_result();
     if ($result_check->num_rows > 0) { $stmt_check->close(); header('Location: index.php?status=error&msg=UsernameSudahAda'); exit(); }

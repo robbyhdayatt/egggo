@@ -1,7 +1,6 @@
 <?php
 include '../templates/header.php';
 
-// Cek notifikasi dari URL
 $pesan = '';
 if (isset($_GET['status'])) {
     if ($_GET['status'] == 'sukses_tambah') {
@@ -199,7 +198,6 @@ $(document).ready(function() {
       return new bootstrap.Tooltip(tooltipTriggerEl)
     })
 
-    // --- LOGIKA MENGHILANGKAN NILAI 0.00 SAAT INPUT DI-FOKUS ---
     $('.clear-decimal-on-focus').on('focus', function() {
         if ($(this).val() == '0.00') {
             $(this).val('');
@@ -210,16 +208,14 @@ $(document).ready(function() {
         if ($(this).val() === '') {
             $(this).val('0.00');
         }
-        // Pastikan formatnya benar jika pengguna memasukkan angka
         let value = parseFloat($(this).val());
         if (!isNaN(value)) {
             $(this).val(value.toFixed(2));
         } else {
-             $(this).val('0.00'); // Kembalikan ke 0.00 jika input tidak valid
+             $(this).val('0.00');
         }
     });
 
-    // --- LOGIKA FORMAT ANGKA RIBUAN UNTUK POPULASI AWAL ---
     function formatNumberWithDots(input) {
         let value = $(input).val().replace(/[^0-9]/g, '');
         if (value === '' || value === null) { $(input).val(''); return; }
@@ -227,8 +223,6 @@ $(document).ready(function() {
     }
     $('.format-number').on('keyup input', function() { formatNumberWithDots(this); });
 
-
-    // Logika untuk Modal Edit
     const editModal = document.getElementById('editModal');
     editModal.addEventListener('show.bs.modal', function (event) {
         const button = event.relatedTarget;
@@ -243,15 +237,12 @@ $(document).ready(function() {
         
         const umurMinggu = umurHari / 7;
 
-        // Update isi form di dalam modal
         editModal.querySelector('.modal-title').textContent = 'Edit Kandang: ' + nama;
         editModal.querySelector('#edit_id_kandang').value = id;
         editModal.querySelector('#edit_nama_kandang').value = nama;
         editModal.querySelector('#edit_tgl_masuk_awal').value = tgl;
-        // Format angka populasi saat mengisi modal
-        $(editModal.querySelector('#edit_populasi_awal')).val(populasi).trigger('keyup'); 
-        editModal.querySelector('#edit_umur_ayam_awal').value = umurMinggu; 
-        // Format angka stok telur saat mengisi modal
+        $(editModal.querySelector('#edit_populasi_awal')).val(populasi).trigger('keyup');
+        editModal.querySelector('#edit_umur_ayam_awal').value = umurMinggu;
         $(editModal.querySelector('#edit_stok_telur_awal_kg')).val(parseFloat(stokTelur).toFixed(2));
         editModal.querySelector('#edit_status').value = status;
     });

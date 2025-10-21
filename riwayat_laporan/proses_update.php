@@ -18,17 +18,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $pemasukan_telur = $telur_terjual_kg * $harga_jual_rata2;
 
     $stmt = $koneksi->prepare("
-        UPDATE laporan_harian 
-        SET 
-            ayam_masuk = ?, 
-            ayam_mati = ?, 
-            ayam_afkir = ?, 
-            pakan_terpakai_kg = ?, 
-            telur_baik_kg = ?, 
-            telur_tipis_kg = ?, 
-            telur_pecah_kg = ?, 
-            telur_terjual_kg = ?, 
-            harga_jual_rata2 = ?, 
+        UPDATE laporan_harian
+        SET
+            ayam_masuk = ?,
+            ayam_mati = ?,
+            ayam_afkir = ?,
+            pakan_terpakai_kg = ?,
+            telur_baik_kg = ?,
+            telur_tipis_kg = ?,
+            telur_pecah_kg = ?,
+            telur_terjual_kg = ?,
+            harga_jual_rata2 = ?,
             pemasukan_telur = ?
         WHERE id_laporan = ?
     ");
@@ -48,24 +48,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     );
 
     if ($stmt->execute()) {
-        // Redirect kembali ke halaman riwayat dengan parameter filter yang sama
-        $id_kandang_filter = $_GET['id_kandang_current'] ?? '';
-        $tgl_awal_filter = $_GET['tgl_awal_current'] ?? '';
-        $tgl_akhir_filter = $_GET['tgl_akhir_current'] ?? '';
-        
-        $redirect_params = http_build_query([
+        $id_kandang_filter = $_POST['id_kandang_current'] ?? '';
+        $tgl_awal_filter = $_POST['tgl_awal_current'] ?? '';
+        $tgl_akhir_filter = $_POST['tgl_akhir_current'] ?? '';
+        $current_page = $_POST['current_page'] ?? '0';
+
+        $redirect_params = [
             'id_kandang' => $id_kandang_filter,
             'tgl_awal' => $tgl_awal_filter,
             'tgl_akhir' => $tgl_akhir_filter,
-            'status' => 'sukses_update' 
-        ]);
-        
-        header('Location: index.php?' . $redirect_params);
+            'status' => 'sukses_update',
+            'page' => $current_page
+        ];
+
+        header('Location: index.php?' . http_build_query($redirect_params));
         exit();
     } else {
         die("Gagal memperbarui data: " . $stmt->error);
     }
+    $stmt->close();
 } else {
     header('Location: index.php');
+    exit();
 }
+$koneksi->close();
 ?>

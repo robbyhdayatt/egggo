@@ -22,14 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
          exit();
     }
 
-    // --- PERUBAHAN QUERY UPDATE ---
     $stmt = $koneksi->prepare("
         UPDATE pengeluaran 
         SET id_kandang = ?, tanggal_pengeluaran = ?, id_kategori = ?, jumlah = ?, keterangan = ? 
         WHERE id_pengeluaran = ?
     ");
     $stmt->bind_param("isissi", $id_kandang, $tanggal_pengeluaran, $id_kategori, $jumlah, $keterangan, $id_pengeluaran);
-    // --- AKHIR PERUBAHAN ---
 
     if ($stmt->execute()) {
         header('Location: index.php?status=sukses_update');

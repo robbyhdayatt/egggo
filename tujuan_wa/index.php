@@ -4,14 +4,12 @@ global $folder_base;
 
 $pesan = '';
 
-// Logika untuk memproses UPDATE data saat form disubmit
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $nowa1 = $_POST['nowa1'];
     $nowa2 = $_POST['nowa2'];
     $nowa3 = $_POST['nowa3'];
     $nowa4 = $_POST['nowa4'];
 
-    // Karena hanya ada satu baris, kita bisa update tanpa WHERE clause yang kompleks
     $stmt = $koneksi->prepare("UPDATE tujuanwa SET nowa1 = ?, nowa2 = ?, nowa3 = ?, nowa4 = ?");
     $stmt->bind_param("ssss", $nowa1, $nowa2, $nowa3, $nowa4);
     
@@ -22,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-// Ambil data nomor WA yang ada saat ini dari database untuk ditampilkan di form
 $data_wa_result = $koneksi->query("SELECT * FROM tujuanwa LIMIT 1");
 $data_wa = $data_wa_result->fetch_assoc();
 ?>

@@ -22,9 +22,7 @@ $nama_header = "Semua Kandang Aktif";
 $id_kandang_int = null;
 $semua_kandang_data = [];
 $ada_data = false; // Flag
-$daftar_id_kandang_proses = []; // Daftar ID kandang yg akan diproses
-
-// --- 1. Ambil Data Master Kandang ---
+$daftar_id_kandang_proses = [];
 if ($semua_kandang_mode) {
     $nama_header = "Semua Kandang"; 
     $result_kandang = $koneksi->query("SELECT * FROM kandang"); 
@@ -51,8 +49,6 @@ if ($semua_kandang_mode) {
 }
 $ids_string_proses = !empty($daftar_id_kandang_proses) ? implode(',', $daftar_id_kandang_proses) : '0';
 
-
-// --- 2. HITUNG STOK AYAM AWAL (SEBELUM tgl_awal) ---
 $sisa_ayam_awal_per_kandang = [];
 $query_stok_awal = "
     SELECT 
@@ -77,8 +73,6 @@ if($stmt_stok_awal){
 }
 $stok_ayam_berjalan_per_kandang = $sisa_ayam_awal_per_kandang;
 
-
-// 3. Ambil Data Laporan Harian (Urutkan ASC untuk kalkulasi)
 $laporan_lengkap_asc = [];
 $query_laporan = "
     SELECT lh.*, k.nama_kandang
@@ -108,7 +102,7 @@ if ($stmt_laporan && !empty($params_laporan)) {
 $laporan_final_untuk_excel = []; 
 
 if($ada_data){
-    // --- 4. Kalkulasi Kumulatif (ASC) ---
+
     foreach ($laporan_lengkap_asc as $laporan) {
         $id_k = $laporan['id_kandang'];
         if (!isset($stok_ayam_berjalan_per_kandang[$id_k])) {
@@ -121,8 +115,6 @@ if($ada_data){
         $laporan_final_untuk_excel[] = $laporan; 
     }
     $laporan_final_untuk_excel = array_reverse($laporan_final_untuk_excel);
-
-    // --- 5. Ambil Data Pengeluaran (Agregasi) ---
     $pengeluaran_harian = [];
     $query_pengeluaran = "
         SELECT p.tanggal_pengeluaran, p.id_kandang, SUM(p.jumlah) as total, 
@@ -147,8 +139,6 @@ if($ada_data){
         }
         $stmt_pengeluaran->close();
      }
-
-    // --- 6. Ambil Harga Pakan Terkini (KODE YANG HILANG) ---
     $harga_pakan_terkini = [];
     $query_harga_pakan = "
         SELECT id_kandang, tanggal_beli, harga_per_kg 
@@ -170,15 +160,13 @@ if($ada_data){
         $stmt_harga->execute();
         $result_harga = $stmt_harga->get_result();
         
-        $harga_pakan_per_kandang_tanggal = []; // [id_kandang][tanggal_beli] => harga
+        $harga_pakan_per_kandang_tanggal = [];
         while($row = $result_harga->fetch_assoc()){
             if(!isset($harga_pakan_per_kandang_tanggal[$row['id_kandang']][$row['tanggal_beli']])){
                  $harga_pakan_per_kandang_tanggal[$row['id_kandang']][$row['tanggal_beli']] = $row['harga_per_kg'];
             }
         }
         $stmt_harga->close();
-
-        // Buat lookup harga terkini per tanggal laporan
         $tanggal_iterator = new DatePeriod(new DateTime($tgl_awal), new DateInterval('P1D'), (new DateTime($tgl_akhir))->modify('+1 day'));
         foreach (array_keys($semua_kandang_data) as $id_k) { 
             $harga_terakhir_lookup = 0; 
@@ -197,26 +185,20 @@ if($ada_data){
                 $harga_pakan_terkini[$id_k][$tanggal_str] = $harga_terakhir_lookup;
             }
         }
-    } // end if $stmt_harga
-    // --- AKHIR KODE YANG HILANG ---
+    }
 
 }
-// --- Akhir Logika Pengambilan Data ---
 
-
-// --- Membuat File Excel ---
 $spreadsheet = new Spreadsheet();
 $sheet = $spreadsheet->getActiveSheet();
 
 // Tentukan jumlah kolom berdasarkan mode
-$lastColIndexNumeric = 18; // Tgl + Ayam(5) + Pakan(3) + TelurProd(4) + TelurJual(3) + Pengel(2)
+$lastColIndexNumeric = 18;
 if ($semua_kandang_mode) {
-    $lastColIndexNumeric = 19; // Tambah 1 kolom Kandang
+    $lastColIndexNumeric = 19;
 }
 $lastColLetter = Coordinate::stringFromColumnIndex($lastColIndexNumeric);
 
-
-// Set Judul
 $sheet->mergeCells('A1:'.$lastColLetter.'1'); 
 $sheet->setCellValue('A1', "Riwayat Laporan - " . htmlspecialchars($nama_header));
 $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
@@ -228,8 +210,6 @@ $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENT
 $sheet->getRowDimension('1')->setRowHeight(20);
 $sheet->getRowDimension('2')->setRowHeight(15);
 
-
-// Set Header Tabel (Baris 4 & 5)
 $headerRow1 = ['Tgl'];
 $headerRow2 = ['']; 
 $colIndexNumeric = 1; 
@@ -237,15 +217,13 @@ $colIndexNumeric = 1;
 if ($semua_kandang_mode) {
     $headerRow1[] = 'Kandang'; $headerRow2[] = ''; $colIndexNumeric++;
 }
-// Ayam
 $startColAyam = Coordinate::stringFromColumnIndex($colIndexNumeric);
-$headerRow1[] = 'Ayam (Ekor)'; $headerRow1[] = ''; $headerRow1[] = ''; $headerRow1[] = ''; $headerRow1[] = ''; // 5 kolom
+$headerRow1[] = 'Ayam (Ekor)'; $headerRow1[] = ''; $headerRow1[] = ''; $headerRow1[] = ''; $headerRow1[] = '';
 $headerRow2[] = 'Masuk'; $headerRow2[] = 'Mati'; $headerRow2[] = 'Afkir'; $headerRow2[] = 'Perubahan'; $headerRow2[] = 'Sisa Stok'; // 5 sub-kolom
 $colIndexNumeric += 5; 
 $endColAyam = Coordinate::stringFromColumnIndex($colIndexNumeric - 1); 
 $sheet->mergeCells($startColAyam.'4:'.$endColAyam.'4');
 
-// Pakan
 $startColPakan = Coordinate::stringFromColumnIndex($colIndexNumeric);
 $headerRow1[] = 'Pakan'; $headerRow1[] = ''; $headerRow1[] = '';
 $headerRow2[] = 'Harga/Kg'; $headerRow2[] = 'Terpakai (Kg)'; $headerRow2[] = 'Total Biaya';
@@ -253,7 +231,6 @@ $colIndexNumeric += 3;
 $endColPakan = Coordinate::stringFromColumnIndex($colIndexNumeric - 1);
 $sheet->mergeCells($startColPakan.'4:'.$endColPakan.'4');
 
-// Produksi Telur
 $startColProd = Coordinate::stringFromColumnIndex($colIndexNumeric);
 $headerRow1[] = 'Produksi Telur (Kg)'; $headerRow1[] = ''; $headerRow1[] = ''; $headerRow1[] = '';
 $headerRow2[] = 'Baik'; $headerRow2[] = 'Tipis'; $headerRow2[] = 'Pecah'; $headerRow2[] = 'Total';
@@ -261,7 +238,6 @@ $colIndexNumeric += 4;
 $endColProd = Coordinate::stringFromColumnIndex($colIndexNumeric - 1);
 $sheet->mergeCells($startColProd.'4:'.$endColProd.'4');
 
-// Penjualan Telur
 $startColJual = Coordinate::stringFromColumnIndex($colIndexNumeric);
 $headerRow1[] = 'Penjualan Telur'; $headerRow1[] = ''; $headerRow1[] = '';
 $headerRow2[] = 'Kg'; $headerRow2[] = 'Harga/Kg'; $headerRow2[] = 'Total Rp';
@@ -269,23 +245,18 @@ $colIndexNumeric += 3;
 $endColJual = Coordinate::stringFromColumnIndex($colIndexNumeric - 1);
 $sheet->mergeCells($startColJual.'4:'.$endColJual.'4');
 
-// Pengeluaran
 $colPengeluaran = Coordinate::stringFromColumnIndex($colIndexNumeric);
 $headerRow1[] = 'Pengeluaran (Rp)'; $headerRow2[] = '';
 $sheet->mergeCells($colPengeluaran.'4:'.$colPengeluaran.'5'); 
 $colIndexNumeric++;
 
-// Keterangan Pengeluaran
 $colKetPengeluaran = Coordinate::stringFromColumnIndex($colIndexNumeric);
 $headerRow1[] = 'Ket. Pengeluaran'; $headerRow2[] = '';
 $sheet->mergeCells($colKetPengeluaran.'4:'.$colKetPengeluaran.'5'); 
 
-
-// Tulis Header ke Sheet
 $sheet->fromArray($headerRow1, NULL, 'A4');
 $sheet->fromArray($headerRow2, NULL, 'A5');
 
-// Style Header
 $headerStyle = [
     'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
@@ -298,10 +269,7 @@ $sheet->getRowDimension('5')->setRowHeight(30);
 $sheet->mergeCells('A4:A5');
 if ($semua_kandang_mode) { $sheet->mergeCells('B4:B5'); }
 
-
-// Isi Data
 $rowNum = 6;
-// Loop menggunakan $laporan_final_untuk_excel (yang sudah di-reverse dan ada sisa ayam)
 foreach ($laporan_final_untuk_excel as $laporan) {
     $rowData = [];
     $tanggal = $laporan['tanggal'];
@@ -311,20 +279,17 @@ foreach ($laporan_final_untuk_excel as $laporan) {
     if ($semua_kandang_mode) {
         $rowData[] = $laporan['nama_kandang'];
     }
-    
-    // Ayam
+
     $ayam_masuk = $laporan['ayam_masuk'] ?? 0;
     $ayam_mati = $laporan['ayam_mati'] ?? 0;
     $ayam_afkir = $laporan['ayam_afkir'] ?? 0;
     $total_ayam_hari = $ayam_masuk - $ayam_mati - $ayam_afkir;
-    $sisa_ayam_kumulatif = $laporan['sisa_ayam_kumulatif'] ?? 0; // Ambil data baru
+    $sisa_ayam_kumulatif = $laporan['sisa_ayam_kumulatif'] ?? 0;
     $rowData[] = $ayam_masuk;
     $rowData[] = $ayam_mati;
     $rowData[] = $ayam_afkir;
     $rowData[] = $total_ayam_hari;
-    $rowData[] = $sisa_ayam_kumulatif; // Tambahkan sisa stok
-
-    // Pakan
+    $rowData[] = $sisa_ayam_kumulatif;
     $harga_pakan = $harga_pakan_terkini[$id_kandang_laporan][$tanggal] ?? 0;
     $pakan_terpakai = $laporan['pakan_terpakai_kg'] ?? 0;
     $biaya_pakan = $pakan_terpakai * $harga_pakan;
@@ -332,7 +297,6 @@ foreach ($laporan_final_untuk_excel as $laporan) {
     $rowData[] = $pakan_terpakai;
     $rowData[] = $biaya_pakan;
 
-    // Produksi Telur
     $telur_baik = $laporan['telur_baik_kg'] ?? 0;
     $telur_tipis = $laporan['telur_tipis_kg'] ?? 0;
     $telur_pecah = $laporan['telur_pecah_kg'] ?? 0;
@@ -342,7 +306,6 @@ foreach ($laporan_final_untuk_excel as $laporan) {
     $rowData[] = $telur_pecah;
     $rowData[] = $produksi_total;
 
-    // Penjualan Telur
     $telur_terjual = $laporan['telur_terjual_kg'] ?? 0;
     $harga_jual = $laporan['harga_jual_rata2'] ?? 0;
     $pemasukan_telur = $laporan['pemasukan_telur'] ?? 0;
@@ -350,7 +313,6 @@ foreach ($laporan_final_untuk_excel as $laporan) {
     $rowData[] = $harga_jual;
     $rowData[] = $pemasukan_telur;
 
-    // Pengeluaran
     $pengeluaran_total = $pengeluaran_harian[$tanggal][$id_kandang_laporan]['total'] ?? 0;
     $pengeluaran_detail = $pengeluaran_harian[$tanggal][$id_kandang_laporan]['detail'] ?? '';
     $rowData[] = $pengeluaran_total;
@@ -360,7 +322,6 @@ foreach ($laporan_final_untuk_excel as $laporan) {
     $rowNum++;
 }
 
-// --- Formatting Kolom ---
 $lastRow = $rowNum - 1;
 if ($lastRow >= 6) { 
     $sheet->getStyle('A6:A'.$lastRow)->getNumberFormat()->setFormatCode('DD/MM/YYYY');
@@ -377,23 +338,23 @@ if ($lastRow >= 6) {
     $decFormatCols = [];
 
     $ayamStartIdx = $startNumColIdx;
-    $intFormatCols = array_merge($intFormatCols, range($ayamStartIdx, $ayamStartIdx + 4)); // 5 kolom Ayam
+    $intFormatCols = array_merge($intFormatCols, range($ayamStartIdx, $ayamStartIdx + 4));
 
-    $pakanStartIdx = $ayamStartIdx + 5; 
-    $intFormatCols[] = $pakanStartIdx; // Harga/Kg Pakan
-    $decFormatCols[] = $pakanStartIdx + 1; // Terpakai (Kg)
-    $intFormatCols[] = $pakanStartIdx + 2; // Total Biaya Pakan
+    $pakanStartIdx = $ayamStartIdx + 5;
+    $intFormatCols[] = $pakanStartIdx;
+    $decFormatCols[] = $pakanStartIdx + 1;
+    $intFormatCols[] = $pakanStartIdx + 2;
 
     $prodStartIdx = $pakanStartIdx + 3;
     $decFormatCols = array_merge($decFormatCols, range($prodStartIdx, $prodStartIdx + 3)); 
 
     $jualStartIdx = $prodStartIdx + 4;
-    $decFormatCols[] = $jualStartIdx; // Kg Jual
-    $intFormatCols[] = $jualStartIdx + 1; // Harga/Kg Jual
-    $intFormatCols[] = $jualStartIdx + 2; // Total Rp Jual
+    $decFormatCols[] = $jualStartIdx;
+    $intFormatCols[] = $jualStartIdx + 1;
+    $intFormatCols[] = $jualStartIdx + 2;
 
     $pengeluaranColIdx = $jualStartIdx + 3;
-    $intFormatCols[] = $pengeluaranColIdx; // Pengeluaran
+    $intFormatCols[] = $pengeluaranColIdx;
 
     $ketPengeluaranColIdx = $pengeluaranColIdx + 1;
 
@@ -430,8 +391,6 @@ if ($lastRow >= 6) {
      $sheet->getStyle('A6')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 }
 
-
-// --- Output ke Browser ---
 $safeFilename = "Riwayat_Laporan_" . preg_replace('/[^A-Za-z0-9_-]/', '_', $nama_header) . "_" . $tgl_awal . "_sd_" . $tgl_akhir . ".xlsx";
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment;filename="' . $safeFilename . '"');

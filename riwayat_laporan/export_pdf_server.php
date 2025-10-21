@@ -1,26 +1,22 @@
 <?php
-// Include Composer autoload, Dompdf, and database connection
+
 require '../vendor/autoload.php';
-include '../config/database.php'; // Pastikan path ini benar
+include '../config/database.php';
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-// Ambil parameter filter dari URL
 $id_kandang_terpilih = $_GET['id_kandang'] ?? '';
 $tgl_awal = $_GET['tgl_awal'] ?? date('Y-m-01');
 $tgl_akhir = $_GET['tgl_akhir'] ?? date('Y-m-t');
 
 $semua_kandang_mode = ($id_kandang_terpilih === 'semua');
-$nama_header = "Pilih Kandang"; // Default
+$nama_header = "Pilih Kandang";
 $id_kandang_int = null;
 $semua_kandang_data = [];
-$ada_data_laporan = false; // Flag untuk mengecek data
+$ada_data_laporan = false;
 $daftar_id_kandang_proses = [];
 
-// --- Logika Pengambilan Data ---
-
-// 1. Ambil Data Master Kandang
 if ($semua_kandang_mode) {
     $nama_header = "Semua Kandang";
     $result_kandang = $koneksi->query("SELECT * FROM kandang"); 
@@ -55,8 +51,6 @@ if ($semua_kandang_mode) {
 }
 $ids_string_proses = !empty($daftar_id_kandang_proses) ? implode(',', $daftar_id_kandang_proses) : '0';
 
-
-// --- 2. HITUNG STOK AYAM AWAL (SEBELUM tgl_awal) ---
 $sisa_ayam_awal_per_kandang = [];
 $query_stok_awal = "
     SELECT 
@@ -81,8 +75,6 @@ if($stmt_stok_awal){
 }
 $stok_ayam_berjalan_per_kandang = $sisa_ayam_awal_per_kandang;
 
-
-// 3. Ambil Data Laporan Harian (Urutkan ASC untuk kalkulasi)
 $laporan_lengkap_asc = [];
 $query_laporan = "
     SELECT lh.*, k.nama_kandang 
@@ -98,7 +90,7 @@ if (!$semua_kandang_mode && $id_kandang_int !== null) {
     $params_laporan[] = $id_kandang_int;
     $types_laporan .= "i";
 }
- $query_laporan .= " ORDER BY lh.tanggal ASC, k.nama_kandang ASC"; // HARUS ASC
+ $query_laporan .= " ORDER BY lh.tanggal ASC, k.nama_kandang ASC";
 
 $stmt_laporan = $koneksi->prepare($query_laporan);
 if ($stmt_laporan) {
@@ -120,11 +112,8 @@ if ($stmt_laporan) {
 
 $laporan_final_untuk_pdf = []; 
 
-// 4. Ambil Data Pengeluaran (Agregasi) - Hanya jika ada data laporan
 $pengeluaran_harian = [];
 if ($ada_data_laporan) {
-    
-    // Kalkulasi Stok Ayam Kumulatif
     foreach ($laporan_lengkap_asc as $laporan) {
         $id_k = $laporan['id_kandang'];
         if (!isset($stok_ayam_berjalan_per_kandang[$id_k])) {
@@ -136,9 +125,7 @@ if ($ada_data_laporan) {
         
         $laporan_final_untuk_pdf[] = $laporan; 
     }
-    $laporan_final_untuk_pdf = array_reverse($laporan_final_untuk_pdf); // Reverse untuk tampilan PDF
-
-    // Query Pengeluaran
+    $laporan_final_untuk_pdf = array_reverse($laporan_final_untuk_pdf);
     $query_pengeluaran = "
         SELECT p.tanggal_pengeluaran, p.id_kandang, SUM(p.jumlah) as total, 
                GROUP_CONCAT(CONCAT(COALESCE(kat.nama_kategori, 'N/A'), ': ', p.keterangan, ' (Rp ', FORMAT(p.jumlah, 0, 'id_ID'), ')') SEPARATOR '; ') as detail
@@ -162,8 +149,6 @@ if ($ada_data_laporan) {
         }
         $stmt_pengeluaran->close();
      }
-
-    // --- 5. Ambil Harga Pakan Terkini (KODE YANG HILANG) ---
     $harga_pakan_terkini = [];
     if (!empty($semua_kandang_data)) {
         $query_harga_pakan = "SELECT id_kandang, tanggal_beli, harga_per_kg FROM stok_pakan WHERE tanggal_beli <= ? ";
@@ -184,8 +169,6 @@ if ($ada_data_laporan) {
                 }
             }
             $stmt_harga->close();
-
-            // Buat lookup harga terkini per tanggal laporan
             $tanggal_iterator = new DatePeriod(new DateTime($tgl_awal), new DateInterval('P1D'), (new DateTime($tgl_akhir))->modify('+1 day'));
             foreach (array_keys($semua_kandang_data) as $id_k) {
                 $harga_terakhir_lookup = 0;
@@ -207,12 +190,7 @@ if ($ada_data_laporan) {
             die("Error preparing statement harga pakan: " . $koneksi->error);
         }
     }
-    // --- AKHIR KODE YANG HILANG ---
 }
-// --- Akhir Logika Pengambilan Data ---
-
-
-// --- Membuat Konten HTML untuk PDF ---
 
 $html = '<!DOCTYPE html>
 <html>
@@ -270,13 +248,11 @@ $html = '<!DOCTYPE html>
 </head>
 <body>';
 
-// Header Dokumen
 $html .= '<div class="header">';
 $html .= '<h1>Riwayat Laporan - ' . htmlspecialchars($nama_header) . '</h1>';
 $html .= '<p>Periode: ' . date('d M Y', strtotime($tgl_awal)) . ' s/d ' . date('d M Y', strtotime($tgl_akhir)) . '</p>';
 $html .= '</div>';
 
-// Footer
 $html .= '<div id="footer">
             <table>
                 <tr>
@@ -286,13 +262,12 @@ $html .= '<div id="footer">
             </table>
           </div>';
 
-// Tabel Data
 $html .= '<table>';
 $html .= '<thead>';
 $html .= '<tr>';
 $html .= '<th rowspan="2" class="col-tgl">Tgl</th>';
 if ($semua_kandang_mode) { $html .= '<th rowspan="2" class="col-kandang">Kandang</th>'; }
-$html .= '<th colspan="5">Ayam (Ekor)</th>'; // Colspan jadi 5
+$html .= '<th colspan="5">Ayam (Ekor)</th>';
 $html .= '<th colspan="3">Pakan</th>';
 $html .= '<th colspan="4">Produksi Telur (Kg)</th>';
 $html .= '<th colspan="3">Penjualan Telur</th>';
@@ -300,7 +275,7 @@ $html .= '<th rowspan="2" class="col-pengeluaran">Pengeluaran (Rp)</th>';
 $html .= '<th rowspan="2" class="col-ket-pengeluaran">Ket. Pengeluaran</th>';
 $html .= '</tr>';
 $html .= '<tr>';
-$html .= '<th class="col-ayam">Masuk</th><th class="col-ayam">Mati</th><th class="col-ayam">Afkir</th><th class="col-ayam-total bg-info">Perubahan</th><th class="col-ayam-sisa bg-primary">Sisa Stok</th>'; // Header baru
+$html .= '<th class="col-ayam">Masuk</th><th class="col-ayam">Mati</th><th class="col-ayam">Afkir</th><th class="col-ayam-total bg-info">Perubahan</th><th class="col-ayam-sisa bg-primary">Sisa Stok</th>';
 $html .= '<th class="col-pakan-harga">Harga/Kg</th><th class="col-pakan-kg">Terpakai (Kg)</th><th class="col-pakan-total bg-warning">Total Biaya</th>';
 $html .= '<th class="col-telur">Baik</th><th class="col-telur">Tipis</th><th class="col-telur">Pecah</th><th class="col-telur-total bg-success">Total</th>';
 $html .= '<th class="col-jual-kg">Kg</th><th class="col-jual-harga">Harga/Kg</th><th class="col-jual-total bg-info">Total Rp</th>';
@@ -308,12 +283,10 @@ $html .= '</tr>';
 $html .= '</thead>';
 $html .= '<tbody>';
 
-// PENTING: Gunakan $ada_data_laporan untuk mengecek
 if (!$ada_data_laporan) { 
-    $colspan = $semua_kandang_mode ? 19 : 18; // Sesuaikan colspan
+    $colspan = $semua_kandang_mode ? 19 : 18;
     $html .= '<tr><td colspan="'.$colspan.'" class="text-center">Tidak ada data laporan untuk periode dan filter yang dipilih.</td></tr>';
 } else {
-    // Loop menggunakan $laporan_final_untuk_pdf (yang sudah di-reverse & dihitung)
     foreach ($laporan_final_untuk_pdf as $laporan) { 
         $tanggal = $laporan['tanggal'];
         $id_kandang_laporan = $laporan['id_kandang'];
@@ -361,7 +334,6 @@ $html .= '</tbody>';
 $html .= '</table>';
 $html .= '</body></html>';
 
-// --- Konfigurasi dan Render PDF ---
 $options = new Options();
 $options->set('isHtml5ParserEnabled', true);
 $options->set('isRemoteEnabled', true); 

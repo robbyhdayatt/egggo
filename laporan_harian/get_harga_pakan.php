@@ -5,10 +5,9 @@ header('Content-Type: application/json');
 
 $id_kandang = $_GET['id_kandang'] ?? null;
 $tanggal = $_GET['tanggal'] ?? null;
-$harga_pakan_formatted = 'Rp 0'; // Default value
+$harga_pakan_formatted = 'Rp 0';
 
 if ($id_kandang && $tanggal) {
-    // Cari harga pakan per kg TERBARU pada atau SEBELUM tanggal laporan untuk kandang yang dipilih
     $stmt = $koneksi->prepare("
         SELECT harga_per_kg 
         FROM stok_pakan 

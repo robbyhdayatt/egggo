@@ -1,6 +1,6 @@
 <?php
 include '../templates/header.php'; 
-// Cek Pimpinan
+
 if ($current_user_role !== 'Pimpinan') { header('Location: ' . $folder_base . '/index.php'); exit(); }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {

@@ -1,7 +1,6 @@
 <?php
 include '../templates/header.php'; 
-// Hak akses Pimpinan sudah otomatis dicek oleh header.php
-// Namun, kita tambahkan pengecekan eksplisit untuk keamanan ganda
+
 if ($current_user_role !== 'Pimpinan') {
      $_SESSION['error_message'] = "Anda tidak memiliki hak akses ke halaman ini.";
      header('Location: ' . $folder_base . '/index.php');

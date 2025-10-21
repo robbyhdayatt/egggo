@@ -1,6 +1,5 @@
 <?php
 include '../templates/header.php';
-// Ambil variabel role global dari header.php
 global $current_user_role, $current_assigned_kandang_id;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -12,22 +11,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $harga_per_kg = str_replace('.', '', $_POST['harga_per_kg']);
     $harga_total = str_replace('.', '', $_POST['harga_total']);
 
-    // --- VALIDASI HAK AKSES DATA ---
     if ($current_user_role === 'Karyawan' && $id_kandang != $current_assigned_kandang_id) {
          header('Location: index.php?status=error&msg=AksesDitolak');
          exit();
     }
-    // --- AKHIR VALIDASI ---
 
-    // --- PERBAIKAN TIPE DATA BIND_PARAM ---
-    // Ubah 'i' (integer) untuk harga menjadi 'd' (double)
     $stmt = $koneksi->prepare("
         UPDATE stok_pakan 
         SET id_kandang = ?, tanggal_beli = ?, nama_pakan = ?, jumlah_kg = ?, harga_per_kg = ?, harga_total = ?
         WHERE id_stok = ?
     ");
     $stmt->bind_param("issdddi", $id_kandang, $tanggal_beli, $nama_pakan, $jumlah_kg, $harga_per_kg, $harga_total, $id_stok);
-    // --- AKHIR PERBAIKAN ---
 
     if ($stmt->execute()) {
         header('Location: index.php?status=sukses_update');

@@ -11,13 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($username) || empty($nama_lengkap) || empty($password) || empty($role)) {
         header('Location: index.php?status=error&msg=InputTidakLengkap'); exit();
     }
-    
-    // --- PERUBAHAN DI SINI ---
-    if (strlen($password) < 3) { // Diubah dari 6 menjadi 3
+
+    if (strlen($password) < 3) {
          header('Location: index.php?status=error&msg=PasswordPendek'); exit();
     }
 
-    // Cek username
     $stmt_check = $koneksi->prepare("SELECT id_user FROM users WHERE username = ?");
     $stmt_check->bind_param("s", $username); $stmt_check->execute(); $result_check = $stmt_check->get_result();
     if ($result_check->num_rows > 0) { $stmt_check->close(); header('Location: index.php?status=error&msg=UsernameSudahAda'); exit(); }

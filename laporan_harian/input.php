@@ -1,17 +1,14 @@
 <?php
 include '../templates/header.php';
-// Ambil variabel role global dari header.php
+
 global $current_user_role, $current_assigned_kandang_id;
 
-// --- MODIFIKASI QUERY KANDANG ---
-// Sesuaikan query daftar kandang berdasarkan role
 $kandang_query = "SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif'";
 if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
     $kandang_query .= " AND id_kandang = " . (int)$current_assigned_kandang_id;
 }
 $kandang_query .= " ORDER BY nama_kandang";
 $kandang_list = $koneksi->query($kandang_query);
-// --- AKHIR MODIFIKASI ---
 
 $pesan = '';
 
@@ -19,11 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $id_kandang = $_POST['id_kandang'] ?? null;
     $tanggal = $_POST['tanggal'] ?? date('Y-m-d');
 
-    // --- VALIDASI HAK AKSES DATA ---
     if ($current_user_role === 'Karyawan' && $id_kandang != $current_assigned_kandang_id) {
          $pesan = "<div class='alert alert-danger'>Error: Anda tidak berhak menginput data untuk kandang ini.</div>";
     } else {
-    // --- AKHIR VALIDASI ---
 
         $ayam_masuk = $_POST['ayam_masuk'] ? (int)str_replace('.', '', $_POST['ayam_masuk']) : 0;
         $ayam_mati = $_POST['ayam_mati'] ? (int)str_replace('.', '', $_POST['ayam_mati']) : 0;
@@ -56,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $pesan = "<div class='alert alert-danger'>Gagal menyimpan laporan: " . $stmt->error . "</div>";
             }
         }
-    } // Akhir else validasi hak akses
+    }
 }
 ?>
 
@@ -249,36 +244,26 @@ $(document).ready(function() {
     kandangFilter.on('change', checkAndShowForm);
     tanggalFilter.on('change', checkAndShowForm);
 
-    // --- PERBAIKAN DI SINI: ISI FUNGSI YANG KOSONG ---
-    
-    // 1. Logika untuk menghapus '0' atau '0.00' saat input difokus
     $('.clear-on-focus').on('focus', function() {
         if ($(this).val() == '0' || $(this).val() == '0.00') {
             $(this).val('');
         }
     });
-
-    // 2. Logika untuk mengembalikan '0' atau '0.00' saat fokus hilang (jika input kosong)
     $('.clear-on-focus').on('blur', function() {
         if ($(this).val() === '') {
-            // Cek apakah ini input desimal (punya step="0.01")
             if ($(this).attr('step') && $(this).attr('step').indexOf('.') !== -1) {
                 $(this).val('0.00');
             } else {
                 $(this).val('0');
             }
         }
-        // Jika input integer (format-number), format juga saat blur
         if ($(this).hasClass('format-number') && $(this).val() !== '0') {
              formatNumberWithDots(this);
         }
     });
-
-    // 3. Definisi fungsi format angka ribuan
     function formatNumberWithDots(input) {
         let value = $(input).val().replace(/[^0-9]/g, '');
         if (value === '' || value === null) { 
-            // Jangan set jadi '0' saat sedang mengetik
             if(!$(input).is(':focus')) {
                  $(input).val('0');
             } else {
@@ -288,24 +273,17 @@ $(document).ready(function() {
         }
         $(input).val(new Intl.NumberFormat('id-ID').format(value));
     }
-    
-    // 4. Terapkan listener untuk format angka ribuan
+
     $('.format-number').on('keyup input', function() { 
         formatNumberWithDots(this); 
     });
 
-    // --- AKHIR PERBAIKAN ---
-
-
-    // --- LOGIKA VALIDASI FORM BOOTSTRAP ---
     const forms = document.querySelectorAll('.needs-validation');
     Array.from(forms).forEach(form => {
         form.addEventListener('submit', event => {
-             // Hapus format titik dari input .format-number sebelum submit
             $(form).find('.format-number').each(function() {
                $(this).val($(this).val().replace(/\./g, ''));
             });
-             // Ganti koma jadi titik untuk input desimal
              $(form).find('input[step*="."]').each(function() {
                   $(this).val($(this).val().replace(',', '.'));
              });
@@ -316,7 +294,6 @@ $(document).ready(function() {
             }
             form.classList.add('was-validated');
 
-            // Kembalikan format setelah submit (jika validasi gagal)
              setTimeout(() => {
                 $(form).find('.format-number').each(function() {
                      formatNumberWithDots(this); 
@@ -325,11 +302,9 @@ $(document).ready(function() {
         }, false);
     });
 
-    // --- MODIFIKASI: TRIGGER OTOMATIS UNTUK KARYAWAN ---
     <?php if ($current_user_role === 'Karyawan'): ?>
         checkAndShowForm();
     <?php endif; ?>
-    // --- AKHIR MODIFIKASI ---
 });
 </script>
 

@@ -1,6 +1,6 @@
 <?php
 include '../templates/header.php';
-// Ambil variabel role global dari header.php
+
 global $current_user_role, $current_assigned_kandang_id;
 
 $pesan = '';
@@ -11,20 +11,14 @@ if (isset($_GET['status'])) {
     elseif ($_GET['status'] == 'error') { $pesan = "<div class='alert alert-danger mt-3'>Terjadi kesalahan.</div>"; }
 }
 
-// Ambil daftar kandang (sudah terfilter by role)
 $kandang_query = "SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif'";
 if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
     $kandang_query .= " AND id_kandang = " . (int)$current_assigned_kandang_id;
 }
 $kandang_query .= " ORDER BY nama_kandang";
 $kandang_list = $koneksi->query($kandang_query);
-
-// --- AMBIL DATA KATEGORI BARU DARI DB ---
 $kategori_list = $koneksi->query("SELECT * FROM kategori_pengeluaran WHERE status = 'Aktif' ORDER BY nama_kategori");
-// --- AKHIR PENGAMBILAN KATEGORI ---
 
-
-// Logika untuk proses tambah pengeluaran
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_pengeluaran'])) {
     $id_kandang = $_POST['id_kandang'];
     $tanggal_pengeluaran = $_POST['tanggal_pengeluaran'];
@@ -45,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_pengeluaran']))
     }
 }
 
-// --- MODIFIKASI QUERY DATA PENGELUARAN (JOIN KE KATEGORI BARU) ---
 $pengeluaran_query = "
     SELECT p.*, k.nama_kandang, kat.nama_kategori 
     FROM pengeluaran p
@@ -57,7 +50,6 @@ if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
 }
 $pengeluaran_query .= " ORDER BY p.tanggal_pengeluaran DESC, p.id_pengeluaran DESC";
 $pengeluaran_result = $koneksi->query($pengeluaran_query);
-// --- AKHIR MODIFIKASI ---
 ?>
 
 <div class="container-fluid">
@@ -264,8 +256,6 @@ $(document).ready(function() {
       return new bootstrap.Tooltip(tooltipTriggerEl)
     });
 
-    // --- KODE JAVASCRIPT YANG BENAR DIMASUKKAN DI SINI ---
-
     // 1. Fungsi format angka
     function formatNumberWithDots(input) {
         // Hapus semua karakter non-digit
@@ -301,7 +291,6 @@ $(document).ready(function() {
             formatNumberWithDots(this); // Format '0'
         }
     });
-    // --- AKHIR KODE JAVASCRIPT ---
 
 
     // Logika untuk Modal Edit
@@ -348,8 +337,7 @@ $(document).ready(function() {
                 event.stopPropagation();
             }
             form.classList.add('was-validated');
-            
-            // Kembalikan format setelah submit (jika validasi gagal)
+
             setTimeout(() => {
                 let addJumlahInput = document.getElementById('jumlah');
                 if (addJumlahInput) formatNumberWithDots(addJumlahInput);

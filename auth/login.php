@@ -1,47 +1,64 @@
 <?php
-// Logika PHP untuk proses login (tetap sama)
+
 include '../config/database.php';
 $error_message = '';
 
 if (isset($_SESSION['user_id'])) {
+    if (!isset($folder_base)) {
+        if (isset($koneksi)) {
+             $query_base = $koneksi->query("SELECT nilai_konfigurasi FROM konfigurasi WHERE nama_konfigurasi = 'folder_base'");
+             if ($query_base && $query_base->num_rows > 0) { $folder_base = $query_base->fetch_assoc()['nilai_konfigurasi']; }
+             else { $folder_base = '/egggo'; }
+        } else { $folder_base = '/egggo'; }
+    }
     header('Location: ' . $folder_base . '/index.php');
     exit();
 }
+
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!empty($_POST['username']) && !empty($_POST['password'])) {
         $username = trim($_POST['username']);
         $password = trim($_POST['password']);
+        $stmt = $koneksi->prepare("SELECT id_user, username, password, role, id_kandang, nama_lengkap FROM users WHERE username = ?");
 
-        // ---- MODIFIKASI DIMULAI DARI SINI ----
-        // 1. Ubah query SELECT untuk mengambil 'id_kandang' juga
-        $stmt = $koneksi->prepare("SELECT id_user, username, password, role, id_kandang FROM users WHERE username = ?"); 
-        // ---- AKHIR MODIFIKASI QUERY ----
-        
-        $stmt->bind_param("s", $username);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        if (!$stmt) {
+             error_log("Prepare statement failed: " . $koneksi->error);
+             $error_message = "Terjadi kesalahan internal. Silakan coba lagi nanti.";
+        } else {
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $result = $stmt->get_result();
 
-        if ($result->num_rows === 1) {
-            $user = $result->fetch_assoc();
-            if (password_verify($password, $user['password'])) {
-                // ---- MODIFIKASI DIMULAI DARI SINI ----
-                // 2. Simpan 'id_kandang' ke dalam session
-                $_SESSION['user_id'] = $user['id_user'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['role'] = $user['role']; 
-                $_SESSION['assigned_kandang_id'] = ($user['role'] === 'Karyawan') ? $user['id_kandang'] : null; // <-- TAMBAHKAN INI
-                // ---- AKHIR MODIFIKASI SESSION ----
-                
-                header('Location: ' . $folder_base . '/index.php');
-                exit();
+            if ($result->num_rows === 1) {
+                $user = $result->fetch_assoc();
+                if (password_verify($password, $user['password'])) {
+                    $_SESSION['user_id'] = $user['id_user'];
+                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
+                    $_SESSION['role'] = $user['role'];
+                    $_SESSION['assigned_kandang_id'] = ($user['role'] === 'Karyawan') ? $user['id_kandang'] : null;
+                    if (!isset($folder_base)) {
+                        $query_base = $koneksi->query("SELECT nilai_konfigurasi FROM konfigurasi WHERE nama_konfigurasi = 'folder_base'");
+                        if ($query_base && $query_base->num_rows > 0) { $folder_base = $query_base->fetch_assoc()['nilai_konfigurasi']; }
+                        else { $folder_base = '/egggo'; }
+                    }
+
+                    header('Location: ' . $folder_base . '/index.php');
+                    exit();
+                }
             }
+            $error_message = "Username atau password yang Anda masukkan salah!";
+            $stmt->close();
         }
-        $error_message = "Username atau password yang Anda masukkan salah!";
     } else {
         $error_message = "Username dan password tidak boleh kosong!";
     }
 }
+
+// Tutup koneksi jika terbuka (opsional, tergantung database.php)
+// if (isset($koneksi)) { $koneksi->close(); }
+
 ?>
 <!doctype html>
 <html lang="id">
@@ -54,9 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    
+
     <style>
-        /* ... (Semua kode CSS dari sebelumnya tetap sama) ... */
+        /* ... (CSS tidak berubah) ... */
         html, body { height: 100%; overflow: hidden; }
         body { font-family: 'Poppins', sans-serif; background-color: #f8f9fa; }
         .login-wrapper { min-height: 100vh; }
@@ -84,22 +101,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <p class="lead">Solusi Cerdas untuk Manajemen Kandang Ayam Petelur Anda.</p>
                 </div>
             </div>
-            
+
             <div class="col-md-5 form-container">
                 <div class="form-box">
                     <div class="logo text-center">🥚 EggGo</div>
                     <p class="subtitle text-center">Silakan login untuk melanjutkan</p>
-                    
+
                     <?php if(!empty($error_message)): ?>
                         <div class="alert alert-danger"><?php echo $error_message; ?></div>
                     <?php endif; ?>
+                     <?php // Pesan jika Karyawan belum ditugaskan kandang
+                        if (isset($_GET['status']) && $_GET['status'] == 'no_assignment'): ?>
+                        <div class="alert alert-warning">Anda belum ditugaskan ke kandang manapun. Silakan hubungi Pimpinan.</div>
+                     <?php endif; ?>
 
                     <form action="login.php" method="POST">
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" name="username" required>
                         </div>
-                        
+
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
                             <div class="input-group">
@@ -124,18 +145,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             const toggleIcon = document.getElementById('toggleIcon');
 
             togglePassword.addEventListener('click', function() {
-                // Cek tipe input saat ini
                 const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
                 passwordInput.setAttribute('type', type);
-
-                // Ganti ikon mata
-                if (type === 'password') {
-                    toggleIcon.classList.remove('fa-eye-slash');
-                    toggleIcon.classList.add('fa-eye');
-                } else {
-                    toggleIcon.classList.remove('fa-eye');
-                    toggleIcon.classList.add('fa-eye-slash');
-                }
+                toggleIcon.classList.toggle('fa-eye');
+                toggleIcon.classList.toggle('fa-eye-slash');
             });
         });
     </script>
