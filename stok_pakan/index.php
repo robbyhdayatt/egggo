@@ -1,7 +1,6 @@
 <?php
 include '../templates/header.php';
-// Ambil variabel role global dari header.php
-global $current_user_role, $current_assigned_kandang_id;
+global $koneksi, $current_user_role, $current_assigned_kandang_id;
 
 $pesan = '';
 if (isset($_GET['status'])) {
@@ -11,52 +10,46 @@ if (isset($_GET['status'])) {
         $pesan = "<div class='alert alert-success mt-3'>Data pembelian pakan berhasil diperbarui!</div>";
     } elseif ($_GET['status'] == 'sukses_hapus') {
         $pesan = "<div class='alert alert-success mt-3'>Data pembelian pakan berhasil dihapus!</div>";
-    } elseif ($_GET['status'] == 'error') { // Tambahkan penanganan error umum
+    } elseif ($_GET['status'] == 'error') {
         $msg = $_GET['msg'] ?? 'Terjadi kesalahan.';
         $pesan = "<div class='alert alert-danger mt-3'>Error: " . htmlspecialchars($msg) . "</div>";
     }
 }
 
 // --- Query Kandang (Aktif) ---
+$kandang_options = [];
 $kandang_query = "SELECT id_kandang, nama_kandang FROM kandang WHERE status = 'Aktif'";
 if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
     $kandang_query .= " AND id_kandang = " . (int)$current_assigned_kandang_id;
 }
 $kandang_query .= " ORDER BY nama_kandang";
-$kandang_list = $koneksi->query($kandang_query);
-// --- Akhir Query Kandang ---
-
+$kandang_list_result = $koneksi->query($kandang_query);
+if ($kandang_list_result) {
+    while ($k = $kandang_list_result->fetch_assoc()) {
+        $kandang_options[] = $k;
+    }
+}
 
 // --- Logika Tambah Stok (POST) ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
-    $id_kandang = $_POST['id_kandang'];
+    $id_kandang = $_POST['id_kandang'] ?? null;
+    if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
+         $id_kandang = $current_assigned_kandang_id;
+    }
     $tanggal_beli = $_POST['tanggal_beli'];
-    $nama_pakan = trim($_POST['nama_pakan']); // Trim input text
-    // Konversi jumlah_kg dari format IDN (koma desimal) ke float
-    $jumlah_kg_raw = str_replace('.', '', $_POST['jumlah_kg'] ?? '0'); // Hapus titik ribuan
-    $jumlah_kg = (float)str_replace(',', '.', $jumlah_kg_raw); // Ganti koma desimal jadi titik
-    // Hapus format ribuan dari harga
-    $harga_per_kg = (float)str_replace('.', '', $_POST['harga_per_kg'] ?? '0');
-    $harga_total = (float)str_replace('.', '', $_POST['harga_total'] ?? '0');
+    $nama_pakan = trim($_POST['nama_pakan']);
+    $jumlah_kg_str = str_replace('.', '', $_POST['jumlah_kg'] ?? '0');
+    $jumlah_kg = (float)str_replace(',', '.', $jumlah_kg_str);
+    $harga_per_kg_str = str_replace('.', '', $_POST['harga_per_kg'] ?? '0');
+    $harga_per_kg = (float)$harga_per_kg_str;
+    $harga_total = round($jumlah_kg * $harga_per_kg); // Hitung ulang di server
 
-    // Validasi Hak Akses
     if ($current_user_role === 'Karyawan' && $id_kandang != $current_assigned_kandang_id) {
         $pesan = "<div class='alert alert-danger mt-3'>Error: Anda tidak berhak menginput data untuk kandang ini.</div>";
-    }
-    // Validasi Input Dasar
-    elseif (empty($nama_pakan) || $jumlah_kg <= 0 || $harga_per_kg < 0 || $harga_total < 0) {
-        $pesan = "<div class='alert alert-danger mt-3'>Error: Pastikan semua field terisi dengan benar (jumlah harus lebih dari 0).</div>";
+    } elseif (empty($id_kandang) || empty($nama_pakan) || $jumlah_kg <= 0 || $harga_per_kg < 0) {
+        $pesan = "<div class='alert alert-danger mt-3'>Error: Pastikan Kandang, Nama Pakan, Jumlah (lebih dari 0), dan Harga per Kg (minimal 0) terisi dengan benar.</div>";
     } else {
-        // Validasi duplikat (opsional, tergantung kebutuhan bisnis apakah boleh input >1x per hari)
-        // $stmt_check = $koneksi->prepare("SELECT id_stok FROM stok_pakan WHERE id_kandang = ? AND tanggal_beli = ?");
-        // $stmt_check->bind_param("is", $id_kandang, $tanggal_beli);
-        // $stmt_check->execute();
-        // $result_check = $stmt_check->get_result();
-        // if ($result_check->num_rows > 0) {
-        //     $pesan = "<div class='alert alert-danger mt-3'>Gagal menyimpan: Data untuk kandang dan tanggal ini sudah ada.</div>";
-        // } else {
         $stmt = $koneksi->prepare("INSERT INTO stok_pakan (id_kandang, tanggal_beli, nama_pakan, jumlah_kg, harga_per_kg, harga_total) VALUES (?, ?, ?, ?, ?, ?)");
-        // Gunakan tipe data 'd' (double) untuk jumlah_kg, harga_per_kg, dan harga_total
         if ($stmt) {
             $stmt->bind_param("issddd", $id_kandang, $tanggal_beli, $nama_pakan, $jumlah_kg, $harga_per_kg, $harga_total);
             if ($stmt->execute()) {
@@ -69,11 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['tambah_stok'])) {
         } else {
             $pesan = "<div class='alert alert-danger mt-3'>Gagal menyiapkan statement: " . $koneksi->error . "</div>";
         }
-        // } // End else duplicate check
-    } // End else validasi akses & input
-} // End POST tambah_stok
+    }
+}
 
 // --- Query Data Stok Pakan ---
+$stok_data = []; // Simpan data di array dulu
 $stok_query = "
     SELECT sp.*, k.nama_kandang
     FROM stok_pakan sp
@@ -83,12 +76,22 @@ $where_clauses = [];
 if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id) {
     $where_clauses[] = "sp.id_kandang = " . (int)$current_assigned_kandang_id;
 }
-
 if (!empty($where_clauses)) {
     $stok_query .= " WHERE " . implode(' AND ', $where_clauses);
 }
 $stok_query .= " ORDER BY sp.tanggal_beli DESC, sp.id_stok DESC";
 $stok_result = $koneksi->query($stok_query);
+if($stok_result) {
+    while($row = $stok_result->fetch_assoc()) {
+        $stok_data[] = $row;
+    }
+}
+
+// Tentukan jumlah kolom berdasarkan role
+$is_pimpinan = ($current_user_role === 'Pimpinan');
+$total_kolom = $is_pimpinan ? 7 : 6;
+$aksi_kolom_index = $total_kolom - 1; // Index kolom terakhir (dimulai dari 0)
+
 ?>
 
 <div class="container-fluid">
@@ -104,64 +107,52 @@ $stok_result = $koneksi->query($stok_query);
                 <div class="card-body">
                     <form id="formTambahStok" method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="tambah_stok" value="1">
-                        <?php if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id): ?>
-                            <input type="hidden" name="id_kandang" value="<?php echo $current_assigned_kandang_id; ?>" />
-                        <?php endif; ?>
-
                         <div class="row">
                             <div class="col-md-6 mb-3">
-                                <label for="id_kandang" class="form-label">Untuk Kandang</label>
-                                <select class="form-select filter-check" id="id_kandang" name="id_kandang" required <?php echo ($current_user_role === 'Karyawan') ? 'disabled' : ''; ?>>
-                                    <?php if ($current_user_role === 'Pimpinan'): ?>
+                                <label for="id_kandang" class="form-label">Untuk Kandang <span class="text-danger">*</span></label>
+                                <select class="form-select" id="id_kandang" name="id_kandang" required <?php echo (!$is_pimpinan) ? 'disabled' : ''; ?>>
+                                    <?php if ($is_pimpinan): ?>
                                         <option value="" disabled selected>-- Pilih Kandang --</option>
                                     <?php endif; ?>
-                                    <?php
-                                    if ($kandang_list) mysqli_data_seek($kandang_list, 0);
-                                    while ($k = $kandang_list->fetch_assoc()) :
-                                    ?>
-                                        <option value="<?php echo $k['id_kandang']; ?>" <?php echo ($current_user_role === 'Karyawan' || (isset($id_kandang) && $k['id_kandang'] == $id_kandang)) ? 'selected' : ''; ?>>
+                                    <?php foreach ($kandang_options as $k) : ?>
+                                        <option value="<?php echo $k['id_kandang']; ?>" <?php echo (!$is_pimpinan && $k['id_kandang'] == $current_assigned_kandang_id) ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($k['nama_kandang']); ?>
                                         </option>
-                                    <?php endwhile; ?>
+                                    <?php endforeach; ?>
+                                    <?php if (empty($kandang_options) && $is_pimpinan): ?>
+                                         <option value="" disabled>Belum ada kandang aktif</option>
+                                    <?php endif; ?>
                                 </select>
                                 <div class="invalid-feedback">Silakan pilih kandang.</div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label for="tanggal_beli" class="form-label">Tanggal Beli</label>
-                                <input type="date" class="form-control filter-check" id="tanggal_beli" name="tanggal_beli" value="<?php echo date('Y-m-d'); ?>" required max="<?php echo date('Y-m-d');
-                                                                                                                                                                                ?>">
+                                <label for="tanggal_beli" class="form-label">Tanggal Beli <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="tanggal_beli" name="tanggal_beli" value="<?php echo date('Y-m-d'); ?>" required max="<?php echo date('Y-m-d'); ?>">
                                 <div class="invalid-feedback">Tanggal beli tidak boleh kosong dan tidak boleh melebihi hari ini.</div>
                             </div>
                         </div>
-
-                        <div id="formDisabledMessage" class="alert alert-warning text-center" style="display: none;"></div>
-
-                        <div id="form-fields-container" style="<?php echo ($current_user_role === 'Karyawan' && !$kandang_list) ? 'display:none;' : ''; // Sembunyikan jika karyawan tpi tdk ada kandang 
-                                                                ?>">
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label for="nama_pakan" class="form-label">Nama/Merk Pakan</label>
-                                    <input type="text" class="form-control" id="nama_pakan" name="nama_pakan" required>
-                                    <div class="invalid-feedback">Nama pakan tidak boleh kosong.</div>
-                                </div>
-                                <div class="col-md-2 mb-3">
-                                    <label for="jumlah_kg" class="form-label">Jumlah (kg)</label>
-                                    <input type="text" inputmode="decimal" class="form-control format-kg" id="jumlah_kg" name="jumlah_kg" required placeholder="0,00">
-                                    <div class="invalid-feedback">Jumlah (kg) wajib diisi dan harus angka (gunakan koma untuk desimal).</div>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label for="harga_per_kg" class="form-label">Harga per Kg (Rp)</label>
-                                    <input type="text" inputmode="numeric" class="form-control format-number" id="harga_per_kg" name="harga_per_kg" required placeholder="0" autocomplete="off">
-                                    <div class="invalid-feedback">Harga per kg wajib diisi dan harus angka.</div>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <label for="harga_total" class="form-label">Harga Total (Rp)</label>
-                                    <input type="text" inputmode="numeric" class="form-control format-number" id="harga_total" name="harga_total" required placeholder="0" autocomplete="off" readonly>
-                                    <div class="invalid-feedback">Harga total tidak boleh kosong.</div>
-                                </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="nama_pakan" class="form-label">Nama/Merk Pakan <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="nama_pakan" name="nama_pakan" required>
+                                <div class="invalid-feedback">Nama pakan tidak boleh kosong.</div>
                             </div>
-                            <button type="submit" id="submitButton" class="btn btn-primary">Simpan Stok</button>
+                            <div class="col-md-2 mb-3">
+                                <label for="jumlah_kg" class="form-label">Jumlah (kg) <span class="text-danger">*</span></label>
+                                <input type="text" inputmode="decimal" class="form-control format-decimal text-end" id="jumlah_kg" name="jumlah_kg" required placeholder="0,00" value="0,00">
+                                <div class="invalid-feedback">Jumlah wajib diisi (gunakan koma untuk desimal).</div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="harga_per_kg" class="form-label">Harga per Kg (Rp) <span class="text-danger">*</span></label>
+                                <input type="text" inputmode="numeric" class="form-control format-number text-end" id="harga_per_kg" name="harga_per_kg" required placeholder="0" autocomplete="off" value="0">
+                                <div class="invalid-feedback">Harga per kg wajib diisi.</div>
+                            </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="harga_total" class="form-label">Harga Total (Rp)</label>
+                                <input type="text" inputmode="numeric" class="form-control format-number text-end" id="harga_total" name="harga_total" placeholder="0" autocomplete="off" value="0" readonly>
+                            </div>
                         </div>
+                        <button type="submit" id="submitButton" class="btn btn-primary">Simpan Stok</button>
                     </form>
                 </div>
             </div>
@@ -172,26 +163,23 @@ $stok_result = $koneksi->query($stok_query);
             <div class="card">
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-striped table-hover" id="tabelStokPakan">
+                        <table class="table table-striped table-hover display compact" id="tabelStokPakan" style="width:100%">
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
-                                    <?php if ($current_user_role === 'Pimpinan'): ?>
+                                    <?php if ($is_pimpinan): ?>
                                         <th>Nama Kandang</th>
                                     <?php endif; ?>
                                     <th>Nama Pakan</th>
-                                    <th>Jumlah (kg)</th>
-                                    <th>Harga per Kg</th>
-                                    <th>Harga Total</th>
-                                    <th class="text-center">Aksi</th>
+                                    <th class="text-end">Jumlah (kg)</th> <th class="text-end">Harga per Kg</th> <th class="text-end">Harga Total</th> <th class="text-center">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if ($stok_result && $stok_result->num_rows > 0): ?>
-                                    <?php while ($row = $stok_result->fetch_assoc()): ?>
+                                <?php if (!empty($stok_data)): ?>
+                                    <?php foreach ($stok_data as $row): ?>
                                         <tr>
                                             <td><?php echo date('d M Y', strtotime($row['tanggal_beli'])); ?></td>
-                                            <?php if ($current_user_role === 'Pimpinan'): ?>
+                                            <?php if ($is_pimpinan): ?>
                                                 <td><?php echo htmlspecialchars($row['nama_kandang']); ?></td>
                                             <?php endif; ?>
                                             <td><?php echo htmlspecialchars($row['nama_pakan']); ?></td>
@@ -208,7 +196,6 @@ $stok_result = $koneksi->query($stok_query);
                                                         data-nama-pakan="<?php echo htmlspecialchars($row['nama_pakan']); ?>"
                                                         data-jumlah="<?php echo $row['jumlah_kg']; ?>"
                                                         data-harga-per-kg="<?php echo $row['harga_per_kg'] ?? 0; ?>"
-                                                        data-harga-total="<?php echo $row['harga_total']; ?>"
                                                         data-bs-toggle-tooltip="tooltip" title="Edit Data">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
@@ -218,11 +205,7 @@ $stok_result = $koneksi->query($stok_query);
                                                 </div>
                                             </td>
                                         </tr>
-                                    <?php endwhile; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="<?php echo ($current_user_role === 'Pimpinan' ? '7' : '6'); ?>" class="text-center text-muted">Belum ada data pembelian pakan.</td>
-                                    </tr>
+                                    <?php endforeach; ?>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -240,52 +223,51 @@ $stok_result = $koneksi->query($stok_query);
                 <h5 class="modal-title" id="editModalLabel">Edit Stok Pakan</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="proses_update.php" method="POST" class="needs-validation" novalidate>
-                <div class="modal-body">
+            <form id="formEditStok" action="proses_update.php" method="POST" class="needs-validation" novalidate>
+                 <div class="modal-body">
                     <input type="hidden" id="edit_id_stok" name="id_stok">
-                    <?php if ($current_user_role === 'Karyawan' && $current_assigned_kandang_id): ?>
-                        <input type="hidden" name="id_kandang" value="<?php echo $current_assigned_kandang_id; ?>" />
-                    <?php endif; ?>
+                     <?php if (!$is_pimpinan && $current_assigned_kandang_id): ?>
+                         <input type="hidden" name="id_kandang" value="<?php echo $current_assigned_kandang_id; ?>" />
+                     <?php endif; ?>
+
                     <div class="mb-3">
-                        <label for="edit_id_kandang" class="form-label">Untuk Kandang</label>
-                        <select class="form-select" id="edit_id_kandang" name="id_kandang" required <?php echo ($current_user_role === 'Karyawan') ? 'disabled' : ''; ?>>
-                            <?php if ($current_user_role === 'Pimpinan'): ?>
-                                <option value="" disabled>-- Pilih Kandang --</option>
-                            <?php endif; ?>
-                            <?php
-                            // Reset pointer lagi untuk loop di modal
-                            if ($kandang_list) mysqli_data_seek($kandang_list, 0);
-                            while ($k = $kandang_list->fetch_assoc()) :
-                            ?>
-                                <option value="<?php echo $k['id_kandang']; ?>"><?php echo htmlspecialchars($k['nama_kandang']); ?></option>
-                            <?php endwhile; ?>
+                        <label for="edit_id_kandang" class="form-label">Untuk Kandang <span class="text-danger">*</span></label>
+                        <select class="form-select" id="edit_id_kandang" name="id_kandang" required <?php echo (!$is_pimpinan) ? 'disabled' : ''; ?>>
+                             <?php if ($is_pimpinan): ?>
+                                 <option value="" disabled>-- Pilih Kandang --</option>
+                             <?php endif; ?>
+                             <?php foreach ($kandang_options as $k) : ?>
+                                 <option value="<?php echo $k['id_kandang']; ?>"><?php echo htmlspecialchars($k['nama_kandang']); ?></option>
+                             <?php endforeach; ?>
+                             <?php if (empty($kandang_options) && $is_pimpinan): ?>
+                                 <option value="" disabled>Belum ada kandang aktif</option>
+                             <?php endif; ?>
                         </select>
                         <div class="invalid-feedback">Silakan pilih kandang.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="edit_tanggal_beli" class="form-label">Tanggal Beli</label>
+                        <label for="edit_tanggal_beli" class="form-label">Tanggal Beli <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="edit_tanggal_beli" name="tanggal_beli" required max="<?php echo date('Y-m-d'); ?>">
                         <div class="invalid-feedback">Tanggal beli tidak boleh kosong dan tidak boleh melebihi hari ini.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="edit_nama_pakan" class="form-label">Nama/Merk Pakan</label>
+                        <label for="edit_nama_pakan" class="form-label">Nama/Merk Pakan <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="edit_nama_pakan" name="nama_pakan" required>
                         <div class="invalid-feedback">Nama pakan tidak boleh kosong.</div>
                     </div>
                     <div class="mb-3">
-                        <label for="edit_jumlah_kg" class="form-label">Jumlah (kg)</label>
-                        <input type="text" inputmode="decimal" class="form-control format-kg" id="edit_jumlah_kg" name="jumlah_kg" required placeholder="0,00">
-                        <div class="invalid-feedback">Jumlah (kg) wajib diisi dan harus angka (gunakan koma untuk desimal).</div>
+                        <label for="edit_jumlah_kg" class="form-label">Jumlah (kg) <span class="text-danger">*</span></label>
+                        <input type="text" inputmode="decimal" class="form-control format-decimal text-end" id="edit_jumlah_kg" name="jumlah_kg" required placeholder="0,00">
+                        <div class="invalid-feedback">Jumlah wajib diisi (gunakan koma untuk desimal).</div>
                     </div>
                     <div class="mb-3">
-                        <label for="edit_harga_per_kg" class="form-label">Harga per Kg (Rp)</label>
-                        <input type="text" inputmode="numeric" class="form-control format-number" id="edit_harga_per_kg" name="harga_per_kg" required placeholder="0" autocomplete="off">
-                        <div class="invalid-feedback">Harga per kg wajib diisi dan harus angka.</div>
+                        <label for="edit_harga_per_kg" class="form-label">Harga per Kg (Rp) <span class="text-danger">*</span></label>
+                        <input type="text" inputmode="numeric" class="form-control format-number text-end" id="edit_harga_per_kg" name="harga_per_kg" required placeholder="0" autocomplete="off">
+                        <div class="invalid-feedback">Harga per kg wajib diisi.</div>
                     </div>
                     <div class="mb-3">
                         <label for="edit_harga_total" class="form-label">Harga Total (Rp)</label>
-                        <input type="text" inputmode="numeric" class="form-control format-number" id="edit_harga_total" name="harga_total" required placeholder="0" autocomplete="off" readonly>
-                        <div class="invalid-feedback">Harga total tidak boleh kosong.</div>
+                        <input type="text" inputmode="numeric" class="form-control format-number text-end" id="edit_harga_total" name="harga_total" placeholder="0" autocomplete="off" readonly>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -301,161 +283,175 @@ $stok_result = $koneksi->query($stok_query);
 
 <script>
     $(document).ready(function() {
-        $('#tabelStokPakan').DataTable({
-            "language": {
-                "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/id.json"
-            },
-            "order": [
-                [0, "desc"]
-            ]
-        });
+        console.log("Document ready. Initializing DataTables...");
+        // --- Inisialisasi DataTables ---
+        const nonSortableColumnTarget = <?php echo $aksi_kolom_index; ?>;
+        try {
+            $('#tabelStokPakan').DataTable({
+                "language": {
+                    "url": "https://cdn.datatables.net/plug-ins/1.13.7/i18n/id.json",
+                    "emptyTable": "Tidak ada data riwayat pembelian pakan."
+                },
+                "order": [
+                    [0, "desc"] // Urutkan berdasarkan kolom pertama (Tanggal) descending
+                ],
+                "columnDefs": [
+                    { "orderable": false, "targets": nonSortableColumnTarget } // Nonaktifkan sorting untuk kolom 'Aksi'
+                ]
+            });
+            console.log("DataTables initialized successfully.");
+        } catch (e) {
+            console.error("Error initializing DataTables:", e);
+            // Tampilkan pesan error kepada pengguna jika perlu
+            // $('#tabelStokPakan').before('<div class="alert alert-danger">Gagal memuat tabel data. Error: ' + e.message + '</div>');
+        }
 
+
+        // --- Inisialisasi Tooltip ---
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle-tooltip="tooltip"]'));
         var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
             return tooltipTriggerEl ? new bootstrap.Tooltip(tooltipTriggerEl) : null;
         });
 
-        const kandangFilter = $('#id_kandang');
-        const tanggalFilter = $('#tanggal_beli');
-        const formFieldsContainer = $('#form-fields-container');
-        const formDisabledMessage = $('#formDisabledMessage');
-        const isKaryawan = <?php echo ($current_user_role === 'Karyawan') ? 'true' : 'false'; ?>;
-        const folderBase = "<?php echo $folder_base; ?>";
+        // --- Fungsi Helper Format & Unformat Angka ---
 
-        function checkStokExist() {
-            const kandangId = kandangFilter.val();
-            const tanggalBeli = tanggalFilter.val();
-            const namaKandang = kandangFilter.find('option:selected').text();
+        // Format angka ribuan (Rp) -> 1.234
+        function formatNumber(element) {
+            let value = $(element).val().replace(/[^0-9]/g, '');
+            // Hanya format jika value tidak kosong
+             $(element).val(value === '' ? '' : new Intl.NumberFormat('id-ID').format(parseInt(value, 10)));
+         }
 
-            if ((!isKaryawan || kandangId) && tanggalBeli) {
-                if (isKaryawan) {
-                    formFieldsContainer.slideDown();
-                    formDisabledMessage.slideUp();
-                    formFieldsContainer.find('input, button').prop('disabled', false);
-                    $('#harga_total, #edit_harga_total').prop('readonly', true);
-                }
-                if (!isKaryawan) {
-                    formFieldsContainer.slideDown();
-                    formDisabledMessage.slideUp();
-                    formFieldsContainer.find('input, button').prop('disabled', false);
-                    $('#harga_total, #edit_harga_total').prop('readonly', true);
-                }
 
-            } else if (!isKaryawan) {
-                formFieldsContainer.slideUp();
-                formDisabledMessage.slideUp();
-            }
-        }
-
-        function formatNumberWithDots(inputElement) {
-            let value = $(inputElement).val().replace(/[^0-9]/g, '');
-            if (value === '' || value === null) {
-                $(inputElement).val('');
-                return;
-            }
-            $(inputElement).val(new Intl.NumberFormat('id-ID').format(value));
-        }
-
-        function formatKgNumber(inputElement) {
-            let value = $(inputElement).val();
-            let decimalPart = '';
-            const commaIndex = value.indexOf(',');
-            if (commaIndex !== -1) {
-                decimalPart = value.substring(commaIndex).replace(/[^0-9]/g, '');
-                value = value.substring(0, commaIndex);
-            }
-            let integerPart = value.replace(/[^0-9]/g, '');
-            if (integerPart === '' || integerPart === null) {
-                integerPart = '0';
-            }
-            const formattedInteger = new Intl.NumberFormat('id-ID').format(integerPart);
-
-            let finalValue = formattedInteger;
-            if (decimalPart.length > 0) {
-                finalValue += ',' + decimalPart.substring(0, 2);
-            } else if (commaIndex !== -1) {
-                finalValue += ',';
-            }
-            $(inputElement).val(finalValue);
-        }
-
+        // Unformat angka ribuan (Rp) -> 1234 (return number)
         function unformatNumber(value) {
-            if (typeof value !== 'string') {
-                value = String(value);
-            }
-            return value.replace(/\./g, '');
+            if (typeof value !== 'string') value = String(value);
+            const num = parseInt(value.replace(/\./g, ''), 10); // Hapus titik, parse ke int
+            return isNaN(num) ? 0 : num; // Kembalikan 0 jika NaN
         }
 
-        function unformatKgNumber(value) {
-            if (typeof value !== 'string') {
-                value = String(value);
-            }
-            return value.replace(/\./g, '').replace(',', '.');
+        // Format angka desimal (Kg) -> 1.234,56
+        function formatDecimal(element) {
+            let value = $(element).val().replace(/[^0-9,]/g, ''); // Hanya angka dan koma
+             let parts = value.split(',');
+             let integerPart = parts[0].replace(/\./g, ''); // Hapus titik ribuan dari bagian integer
+             let decimalPart = parts.length > 1 ? parts[1] : '';
+
+             // Jika integer kosong dan desimal kosong, biarkan kosong
+             if (integerPart === '' && decimalPart === '') {
+                 $(element).val('');
+                 return;
+             }
+
+             integerPart = integerPart === '' ? '0' : integerPart;
+             decimalPart = (decimalPart + '00').substring(0, 2); // Pastikan 2 desimal
+
+             // Format bagian integer dengan titik ribuan
+             let formattedInteger = new Intl.NumberFormat('id-ID').format(parseInt(integerPart, 10));
+
+             $(element).val(formattedInteger + ',' + decimalPart);
+         }
+
+
+        // Unformat angka desimal (Kg) -> 1234.56 (return number)
+        function unformatDecimal(value) {
+            if (typeof value !== 'string') value = String(value);
+            // Hapus titik ribuan, ganti koma desimal jadi titik
+            const num = parseFloat(value.replace(/\./g, '').replace(',', '.'));
+            return isNaN(num) ? 0.0 : num; // Kembalikan 0.0 jika NaN
         }
 
-        function calculateTotal(jumlahKgInputSelector, hargaPerKgInputSelector, hargaTotalInputSelector) {
-            const jumlahKg = parseFloat(unformatKgNumber($(jumlahKgInputSelector).val())) || 0;
-            const hargaPerKg = parseFloat(unformatNumber($(hargaPerKgInputSelector).val())) || 0;
+
+        // --- Fungsi Kalkulasi Total ---
+        function calculateTotal(jumlahKgSelector, hargaPerKgSelector, hargaTotalSelector) {
+            const jumlahKg = unformatDecimal($(jumlahKgSelector).val());
+            const hargaPerKg = unformatNumber($(hargaPerKgSelector).val());
             const total = Math.round(jumlahKg * hargaPerKg);
-            // Format output total
-            $(hargaTotalInputSelector).val(new Intl.NumberFormat('id-ID').format(total));
-        }
-        $('.filter-check').on('change', checkStokExist);
 
-        $(document).on('keyup input', '.format-number', function() {
-            formatNumberWithDots(this);
-        });
+            console.log(`Calculating Total: Jumlah=${jumlahKg}, Harga/Kg=${hargaPerKg}, Total=${total}`); // DEBUG
+
+            const totalInput = $(hargaTotalSelector);
+            totalInput.val(total); // Set nilai numerik dulu
+            formatNumber(totalInput); // Baru format tampilan
+        }
+
+
+        // --- Event Listeners untuk Formatting Input ---
+        $(document).on('input', '.format-number', function() { formatNumber(this); });
+        $(document).on('input', '.format-decimal', function() { formatDecimal(this); });
+
         $(document).on('blur', '.format-number', function() {
-            if ($(this).val() === '') $(this).val('0');
-            formatNumberWithDots(this);
+            if ($(this).val() === '') $(this).val('0'); // Set default 0 jika kosong saat blur
+            formatNumber(this);
         });
+        $(document).on('blur', '.format-decimal', function() {
+             // Set default 0,00 jika kosong atau hanya koma saat blur
+            if ($(this).val() === '' || $(this).val() === ',') $(this).val('0,00');
+            formatDecimal(this);
+        });
+
         $(document).on('focus', '.format-number', function() {
-            if ($(this).val() === '0') $(this).val('');
+            if ($(this).val() === '0') $(this).val(''); // Hapus 0 saat fokus
         });
-        $(document).on('keyup input', '.format-kg', function() {
-            formatKgNumber(this);
+        $(document).on('focus', '.format-decimal', function() {
+             if ($(this).val() === '0,00') $(this).val(''); // Hapus 0,00 saat fokus
+             // Jika hanya koma, hapus juga
+             if ($(this).val() === ',') $(this).val('');
         });
-        $(document).on('blur', '.format-kg', function() {
-            if ($(this).val() === '' || $(this).val() === '0') $(this).val('0,00');
-            formatKgNumber(this);
-        });
-        $(document).on('focus', '.format-kg', function() {
-            if ($(this).val() === '0,00') $(this).val('');
-        });
-        $('#harga_per_kg, #jumlah_kg').on('keyup input blur', function() {
+
+
+        // --- Event Listeners untuk Kalkulasi ---
+        // Panggil calculateTotal setiap kali input jumlah atau harga/kg berubah (input) atau diformat ulang (blur)
+        $('#formTambahStok').on('input blur', '#jumlah_kg, #harga_per_kg', function() {
             calculateTotal('#jumlah_kg', '#harga_per_kg', '#harga_total');
         });
-        $(document).on('keyup input blur', '#edit_harga_per_kg, #edit_jumlah_kg', function() {
-            calculateTotal('#edit_jumlah_kg', '#edit_harga_per_kg', '#edit_harga_total');
+        // Pakai event delegation untuk modal
+        $(document).on('input blur', '#edit_jumlah_kg, #edit_harga_per_kg', function() {
+             // Pastikan ini di dalam modal edit
+             if ($(this).closest('#formEditStok').length) {
+                calculateTotal('#edit_jumlah_kg', '#edit_harga_per_kg', '#edit_harga_total');
+             }
         });
+
+
+        // --- Logika Modal Edit ---
         const editModalEl = document.getElementById('editModal');
         if (editModalEl) {
             editModalEl.addEventListener('show.bs.modal', function(event) {
+                console.log("Modal edit opened."); // DEBUG
                 const button = event.relatedTarget;
                 const dataset = button.dataset;
 
+                // Isi form modal
                 $('#edit_id_stok').val(dataset.id);
-                $('#edit_id_kandang').val(dataset.idKandang || "");
+                $('#edit_id_kandang').val(dataset.idKandang || ""); // Set selected kandang
                 $('#edit_tanggal_beli').val(dataset.tanggal);
                 $('#edit_nama_pakan').val(dataset.namaPakan);
-                const initialJumlahKg = parseFloat(dataset.jumlah || 0).toFixed(2).replace('.', ',');
-                $('#edit_jumlah_kg').val(initialJumlahKg);
-                formatKgNumber(document.getElementById('edit_jumlah_kg'));
-                const initialHargaPerKg = dataset.hargaPerKg || 0;
-                const initialHargaTotal = dataset.hargaTotal || 0;
-                $('#edit_harga_per_kg').val(initialHargaPerKg);
-                $('#edit_harga_total').val(initialHargaTotal);
-                formatNumberWithDots(document.getElementById('edit_harga_per_kg'));
-                formatNumberWithDots(document.getElementById('edit_harga_total'));
 
+                // Set nilai awal dan format untuk Jumlah & Harga/Kg
+                const jumlahInput = $('#edit_jumlah_kg');
+                // Set nilai dengan koma sebagai pemisah desimal jika ada
+                let jumlahVal = parseFloat(dataset.jumlah || 0).toFixed(2).replace('.', ',');
+                jumlahInput.val(jumlahVal);
+                formatDecimal(jumlahInput); // Format setelah set value
+
+                const hargaKgInput = $('#edit_harga_per_kg');
+                hargaKgInput.val(parseInt(dataset.hargaPerKg || 0)); // Set nilai integer
+                formatNumber(hargaKgInput); // Format setelah set value
+
+                // Kalkulasi total awal saat modal dibuka
+                calculateTotal('#edit_jumlah_kg', '#edit_harga_per_kg', '#edit_harga_total');
+
+                // Reset validasi Bootstrap
                 $(editModalEl).find('form').removeClass('was-validated');
             });
         }
+
+        // --- Konfirmasi Hapus ---
         $('#tabelStokPakan tbody').on('click', '.btn-hapus', function(e) {
-            /* ... kode hapus ... */
             e.preventDefault();
             const href = $(this).attr('href');
-            Swal.fire({
+            Swal.fire({ /* ... Konfirmasi SweetAlert ... */
                 title: 'Anda yakin?',
                 text: "Data ini akan dihapus permanen!",
                 icon: 'warning',
@@ -469,42 +465,72 @@ $stok_result = $koneksi->query($stok_query);
                 }
             });
         });
+
+        // --- Validasi Bootstrap & Unformat sebelum Submit ---
         const forms = document.querySelectorAll('.needs-validation');
         Array.from(forms).forEach(form => {
             form.addEventListener('submit', event => {
-                $(form).find('.format-number').each(function() {
-                    $(this).val(unformatNumber($(this).val()));
+                // Simpan referensi ke input sebelum di-unformat
+                const numbersToReformat = $(form).find('.format-number');
+                const decimalsToReformat = $(form).find('.format-decimal');
+
+                // Unformat angka SEBELUM checkValidity
+                numbersToReformat.each(function() {
+                    if (!$(this).prop('readonly')) { // Jangan unformat readonly (Harga Total)
+                        $(this).val(unformatNumber($(this).val()));
+                    }
                 });
-                $(form).find('.format-kg').each(function() {
-                    $(this).val(unformatKgNumber($(this).val()));
+                decimalsToReformat.each(function() {
+                    let unformattedVal = unformatDecimal($(this).val());
+                    // Pastikan > 0 jika field jumlah_kg
+                    if ($(this).attr('name') === 'jumlah_kg' && unformattedVal <= 0) {
+                        // Jika jumlah 0 atau kurang, set invalid manual (opsional, tergantung validasi server)
+                        // this.setCustomValidity('Jumlah harus lebih dari 0'); // -> Ini akan menghentikan submit jika browser support
+                        // Atau biarkan server yang validasi, tapi pastikan nilai 0.00 terkirim jika kosong
+                        if ($(this).val() === '' || $(this).val() === '0') {
+                           $(this).val('0.00'); // Kirim 0.00 jika memang kosong
+                        } else {
+                           $(this).val(unformattedVal.toFixed(2)); // Kirim angka asli
+                        }
+                    } else {
+                         $(this).val(unformattedVal.toFixed(2)); // Kirim angka asli dengan 2 desimal
+                    }
                 });
 
+
                 if (!form.checkValidity()) {
+                    console.log("Form validation failed."); // DEBUG
                     event.preventDefault();
                     event.stopPropagation();
-                    setTimeout(() => {
-                        $(form).find('.format-number').each(function() {
-                            formatNumberWithDots(this);
-                        });
-                        $(form).find('.format-kg').each(function() {
-                            formatKgNumber(this);
-                        });
-                        if (form.id === 'formTambahStok') {
-                            calculateTotal('#jumlah_kg', '#harga_per_kg', '#harga_total');
-                        } else {
-                            calculateTotal('#edit_jumlah_kg', '#edit_harga_per_kg', '#edit_harga_total');
-                        }
-                    }, 50); // Small delay
+                    // Kembalikan format SEGERA jika validasi gagal
+                     numbersToReformat.each(function() { formatNumber(this); });
+                     decimalsToReformat.each(function() { formatDecimal(this); });
+                } else {
+                    console.log("Form validation passed. Submitting..."); // DEBUG
                 }
+
                 form.classList.add('was-validated');
+
+                // SELALU kembalikan format setelah jeda singkat, baik submit berhasil/gagal
+                 setTimeout(() => {
+                    console.log("Reformatting inputs after submit attempt."); // DEBUG
+                    numbersToReformat.each(function() { formatNumber(this); });
+                    decimalsToReformat.each(function() { formatDecimal(this); });
+                 }, 200); // Beri sedikit lebih banyak waktu
+
             }, false);
         });
 
-        checkStokExist();
+         // Panggil format awal saat halaman dimuat
+         $('.format-number').each(function() { formatNumber(this); });
+         $('.format-decimal').each(function() { formatDecimal(this); });
 
-    });
+         // Trigger kalkulasi awal untuk form tambah (jika ada nilai default selain 0)
+         calculateTotal('#jumlah_kg', '#harga_per_kg', '#harga_total');
+
+
+    }); // End $(document).ready()
 </script>
 
 </body>
-
 </html>
