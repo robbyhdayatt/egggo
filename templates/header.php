@@ -72,13 +72,38 @@ if ($user_role === 'Karyawan' && $assigned_kandang_id === null) {
     <link rel="stylesheet" href="<?php echo $folder_base; ?>/assets/css/style.css">
 
     <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script> </head>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
 <body>
 
 <?php include_once(__DIR__ . '/sidebar.php'); ?>
 
+<div id="sidebarOverlay"></div>
 <div class="wrapper d-flex flex-column min-vh-100 w-100">
     <header class="topbar">
-        </header>
+        <button class="mobile-nav-toggle" id="mobileNavToggle"><i class="fas fa-bars"></i></button>
+
+        <?php // Kode notifikasi tidak berubah... ?>
+        <?php if (isset($_SESSION['error_message'])): ?>
+            <div class="alert alert-danger alert-dismissible fade show m-3" role="alert" style="position: absolute; top: 10px; right: 10px; z-index: 1050;">
+                 <?php echo htmlspecialchars($_SESSION['error_message']); ?>
+                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php unset($_SESSION['error_message']); ?>
+        <?php endif; ?>
+        <?php if (isset($_GET['status']) && $_GET['status'] == 'no_assignment'): ?>
+             <div class="alert alert-warning alert-dismissible fade show m-3" role="alert" style="position: absolute; top: 10px; right: 10px; z-index: 1050;">
+                  Anda belum ditugaskan ke kandang manapun. Silakan hubungi Pimpinan.
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+             </div>
+         <?php endif; ?>
+         <?php if (isset($_SESSION['success_message'])): ?>
+           <div class="alert alert-success alert-dismissible fade show m-3" role="alert" style="position: absolute; top: 10px; right: 10px; z-index: 1050;">
+               <?php echo htmlspecialchars($_SESSION['success_message']); ?>
+               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+           </div>
+           <?php unset($_SESSION['success_message']); ?>
+           <?php endif; ?>
+    </header>
 
     <div class="main-content">
